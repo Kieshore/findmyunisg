@@ -5,14 +5,25 @@ const { getEligibleCoursesForUser } = require("./courseRecommendationIGP");
  * Compressed fixed prestige scores.
  * These are INTERNAL APP HEURISTICS, not objective truth.
  */
+// const PREV_PRESTIGE_SCORES = {
+//   NUS: 92,
+//   NTU: 89,
+//   SMU: 85,
+//   SUTD: 82,
+//   SIT: 78,
+//   SUSS: 75,
+// };
+
 const BASE_PRESTIGE_SCORES = {
-  NUS: 92,
-  NTU: 89,
-  SMU: 85,
-  SUTD: 82,
-  SIT: 78,
-  SUSS: 75,
+  NUS: 94,
+  NTU: 91,
+  SMU: 82,
+  SUTD: 80,
+  SIT: 65,
+  SUSS: 41,
 };
+
+//Source: https://www.uniranks.com/ranking/singapore
 
 /**
  * Internal weights inside the INTEREST priority system.
@@ -64,17 +75,22 @@ const PRIORITY_METRICS = {
     },
   },
   interest: {
-    key: "interest",
-    label: "Interest Fit Score",
-    higherIsBetter: true,
-    normalization: "fixed_direct",
-    getValue: (course) => {
-      if (!course?.interest_fit?.score && course?.interest_fit?.score !== 0) {
-        return null;
-      }
-      return Number(course.interest_fit.score);
-    },
+  key: "interest",
+  label: "Interest Fit Score",
+  higherIsBetter: true,
+  normalization: "fixed_direct",
+  getValue: (course) => {
+    const signedScore =
+      course?.interest_fit?.signed_score ??
+      course?.interest_fit?.score;
+
+    if (signedScore === null || signedScore === undefined) {
+      return null;
+    }
+
+    return Number(signedScore);
   },
+},
 };
 
 function toNumber(value) {
@@ -406,6 +422,10 @@ function getNormalizedMetricScore(course, metricKey, metricStats) {
   const rawValue = metricConfig.getValue(course);
 
   if (rawValue === null || rawValue === undefined) {
+    if (metricKey === "salary") {
+      return 50;
+    }
+
     return null;
   }
 
@@ -416,6 +436,10 @@ function getNormalizedMetricScore(course, metricKey, metricStats) {
   const stats = metricStats[metricKey];
 
   if (!stats || stats.min === null || stats.max === null) {
+    if (metricKey === "salary") {
+      return 50;
+    }
+
     return null;
   }
 
@@ -493,6 +517,7 @@ function attachPriorityDebug(course, priorityOrder, priorityWeights, metricStats
       metrics[metricKey].matched_interest_count = course.interest_fit.matched_interest_count;
       metrics[metricKey].wanted_score = course.interest_fit.wanted_score;
       metrics[metricKey].unwanted_penalty = course.interest_fit.unwanted_penalty;
+      metrics[metricKey].signed_score = course.interest_fit.signed_score;
       metrics[metricKey].excluded_due_to_unwanted = course.interest_fit.excluded_due_to_unwanted;
       metrics[metricKey].excluded_unwanted_matches = course.interest_fit.excluded_unwanted_matches;
       metrics[metricKey].excluded_due_to_only_wanted = course.interest_fit.excluded_due_to_only_wanted;
@@ -719,9 +744,13 @@ async function attachInterestScoresToCourses(
         ? Number((unwantedWeightedPenaltySum / unwantedTotalPossibleWeight).toFixed(4))
         : 0;
 
-    const finalInterestScore = Number(
-      clamp(wantedScore - unwantedPenalty, 0, 100).toFixed(4)
-    );
+    const signedInterestScore = Number(
+  (wantedScore - unwantedPenalty).toFixed(4)
+);
+
+const finalInterestScore = Number(
+  clamp(signedInterestScore, 0, 100).toFixed(4)
+);
 
     const excludedDueToUnwanted =
       excludeUnwantedInterests && excludedUnwantedMatches.length > 0;
@@ -734,6 +763,7 @@ async function attachInterestScoresToCourses(
       interest_fit: {
         score: finalInterestScore,
         wanted_score: wantedScore,
+        signed_score: signedInterestScore,
         unwanted_penalty: unwantedPenalty,
         matched_interest_count: matchedInterestCount,
         excluded_due_to_unwanted: excludedDueToUnwanted,
@@ -931,3 +961,7 @@ module.exports.getRankedEligibleCoursesForUser = async function getRankedEligibl
     results: rankedResults,
   };
 };
+
+module.exports.attachInterestScoresToCourses = attachInterestScoresToCourses;
+module.exports.buildInterestProfileFromQuery = buildInterestProfileFromQuery;
+module.exports.parseBoolean = parseBoolean;

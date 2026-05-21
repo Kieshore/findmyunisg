@@ -14,6 +14,7 @@ async function loadUserProfile() {
     document.getElementById("fullName").value = user.full_name || "";
     document.getElementById("email").value = user.email || "";
     document.getElementById("school").value = profile?.institution_name || "";
+    document.getElementById("postal_code").value = user.postal_code || "";
     document.getElementById("course").value = profile?.diploma_name || "";
     document.getElementById("gradYear").value = profile?.graduation_year || "";
 

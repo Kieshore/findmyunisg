@@ -13,6 +13,7 @@ module.exports.getUserProfile = async function getUserProfile(userId) {
       user_id: true,
       first_name: true,
       full_name: true,
+      postal_code: true,
       citizenship: true,
       email: true,
       academic_profiles: {

@@ -36,6 +36,27 @@
               <input id="academicScore" class="input" type="text" readonly />
             </div>
 
+            <div class="field">
+  <div class="range-label-row">
+    <label for="bandMinPercentage">Minimum acceptance chance</label>
+    <span id="bandMinPercentageValue">80%</span>
+  </div>
+
+  <input
+    id="bandMinPercentage"
+    class="range-input"
+    type="range"
+    min="0"
+    max="100"
+    step="1"
+    value="80"
+  />
+
+  <p class="field-hint">
+    Shows courses from SIT&SUSS where your acceptance/shortlist band is at least this percentage.
+  </p>
+</div>
+
             <div id="preferredUniField" class="field">
               <label for="preferredUniversities">Preferred universities</label>
               <select id="preferredUniversities" class="select" multiple size="6">

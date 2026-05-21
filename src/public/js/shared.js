@@ -1,4 +1,4 @@
-const CURRENT_USER_ID = 2;
+const CURRENT_USER_ID = 12;
 
 const STORAGE_KEYS = {
   interestsState: `findmyunisg_interests_${CURRENT_USER_ID}`,
@@ -6,13 +6,22 @@ const STORAGE_KEYS = {
   compareCourses: `findmyunisg_compare_${CURRENT_USER_ID}`,
 };
 
+// const PREV_PRESTIGE_SCORES = {
+//   NUS: 92,
+//   NTU: 89,
+//   SMU: 85,
+//   SUTD: 82,
+//   SIT: 78,
+//   SUSS: 75,
+// };
+
 const PRESTIGE_SCORES = {
-  NUS: 92,
-  NTU: 89,
-  SMU: 85,
-  SUTD: 82,
-  SIT: 78,
-  SUSS: 75,
+  NUS: 94,
+  NTU: 91,
+  SMU: 82,
+  SUTD: 80,
+  SIT: 65,
+  SUSS: 41,
 };
 
 const DEFAULT_INTEREST_STATE = {
@@ -35,6 +44,7 @@ const DEFAULT_FINDER_STATE = {
   onlyWanted: false,
   excludeUnwanted: false,
   courseKeyword: "",
+  bandMinPercentage: "80",
   priority: {
   1: ["prestige"],
   2: ["salary"],
@@ -227,4 +237,8 @@ function normalizeCourseForCompare(course) {
     interest_relevance_rows: getCourseInterestRelevanceRows(course),
     raw: course,
   };
+}
+
+function csv(values) {
+  return values.map(value => String(value).trim()).filter(Boolean).join(",");
 }

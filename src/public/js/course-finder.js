@@ -52,6 +52,7 @@ function persistFinderState() {
   saveFinderState({
     activeUni: state.activeUni,
     gpaBoost: document.getElementById("gpaBoost").value,
+    bandMinPercentage: document.getElementById("bandMinPercentage").value,
     selectedUniversities,
     onlyWanted: document.getElementById("onlyWanted").checked,
     excludeUnwanted: document.getElementById("excludeUnwanted").checked,
@@ -62,6 +63,11 @@ function persistFinderState() {
 
 function applySavedFinderStateToInputs() {
   document.getElementById("gpaBoost").value = savedFinderState.gpaBoost ?? "0.17";
+  document.getElementById("bandMinPercentage").value =
+  savedFinderState.bandMinPercentage ?? "80";
+
+document.getElementById("bandMinPercentageValue").textContent =
+  `${savedFinderState.bandMinPercentage ?? "80"}%`;
   document.getElementById("onlyWanted").checked = Boolean(savedFinderState.onlyWanted);
   document.getElementById("excludeUnwanted").checked = Boolean(savedFinderState.excludeUnwanted);
   document.getElementById("courseKeyword").value = savedFinderState.courseKeyword || "";
@@ -102,6 +108,10 @@ function buildRecommendationQuery() {
 
   params.set("userId", CURRENT_USER_ID);
   params.set("difference", document.getElementById("gpaBoost").value || "0");
+  params.set(
+  "band_min_percentage",
+  document.getElementById("bandMinPercentage").value || "80"
+);
   params.set("exclude_unwanted_interests", document.getElementById("excludeUnwanted").checked ? "true" : "false");
   params.set("only_wanted_interests", document.getElementById("onlyWanted").checked ? "true" : "false");
 
@@ -141,6 +151,7 @@ async function fetchRankedCourses() {
 
   state.isLoadingCourses = true;
   state.apiError = null;
+  
   renderCourses();
 
   try {
@@ -313,6 +324,106 @@ function getScore(course) {
   return score === null || score === undefined ? "—" : `${Number(score).toFixed(1)}/100`;
 }
 
+function formatPriorityMetricValue(value) {
+  if (value === null || value === undefined || value === "") {
+    return "—";
+  }
+
+  if (typeof value === "number") {
+    return Number(value).toFixed(2);
+  }
+
+  return value;
+}
+
+function getFinalScoreDisplay(course) {
+  return (
+    course.total_score_display ||
+    course.priority_score_display ||
+    `${Number(course.total_score ?? course.priority_score ?? 0).toFixed(2)} / 100.00`
+  );
+}
+
+function renderScoreBreakdown(course) {
+  const metrics = course.priority_metrics || {};
+  const metricEntries = Object.entries(metrics);
+
+  if (!metricEntries.length) {
+    return `
+      <div class="score-breakdown-empty">
+        No priority score breakdown available for this course.
+      </div>
+    `;
+  }
+
+  const rows = metricEntries.map(([metricKey, metric]) => {
+    const weightPercent = Number((metric.weight || 0) * 100).toFixed(1);
+    const normalizedScore =
+      metric.normalized_score === null || metric.normalized_score === undefined
+        ? "0.00"
+        : Number(metric.normalized_score).toFixed(2);
+
+    const contribution =
+      metric.weighted_contribution === null || metric.weighted_contribution === undefined
+        ? "0.00"
+        : Number(metric.weighted_contribution).toFixed(2);
+
+    const maxContribution = Number((100 * (metric.weight || 0))).toFixed(2);
+
+    return `
+      <div class="score-breakdown-row">
+        <div>
+          <strong>${metric.label || metricKey}</strong>
+          <div class="course-meta">
+  ${
+    metricKey === "interest"
+      ? `
+        Wanted score: ${formatPriorityMetricValue(metric.wanted_score)} ·
+        Unwanted penalty: ${formatPriorityMetricValue(metric.unwanted_penalty)} ·
+        Signed score: ${formatPriorityMetricValue(metric.signed_score)}
+      `
+      : `Raw value: ${formatPriorityMetricValue(metric.raw_value)}`
+  }
+</div>
+        </div>
+
+        <div class="score-formula">
+          <span>${weightPercent}%</span>
+          <span>×</span>
+          <span>${normalizedScore}</span>
+          <span>=</span>
+          <strong>${contribution}</strong>
+        </div>
+
+        <div class="course-meta">
+          ${contribution} / ${maxContribution}
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  return `
+    <div class="score-breakdown">
+      <div class="score-breakdown-header">
+        <strong>Final score calculation</strong>
+        <span>${getFinalScoreDisplay(course)}</span>
+      </div>
+
+      <div class="score-breakdown-explainer">
+        Each selected priority is converted into a score out of 100, multiplied by its priority weight,
+        then added together to form the final recommendation score.
+      </div>
+
+      ${rows}
+
+      <div class="score-breakdown-total">
+        <strong>Total recommendation score</strong>
+        <strong>${getFinalScoreDisplay(course)}</strong>
+      </div>
+    </div>
+  `;
+}
+
 function renderCourses() {
   const list = document.getElementById("courseList");
   const keyword = document.getElementById("courseKeyword").value.trim().toLowerCase();
@@ -370,13 +481,21 @@ function renderCourses() {
       </div>
 
       <div class="details">
-        <strong>Admissions</strong><br />
-        Min GPA: ${valueOrDash(course.min_gpa)} · 10th percentile RP: ${valueOrDash(course.tenth_percentile_rp)} · UAS 70: ${valueOrDash(course.tenth_percentile_uas_70)}<br />
-        Year recorded: ${valueOrDash(course.year_recorded)} · GES source year: ${valueOrDash(course.ges?.source_year)}<br /><br />
+  <strong>Admissions</strong><br />
+  Min GPA: ${valueOrDash(course.min_gpa)} ·
+  10th percentile RP: ${valueOrDash(course.tenth_percentile_rp)} ·
+  UAS 70: ${valueOrDash(course.tenth_percentile_uas_70)}<br />
+  Year recorded: ${valueOrDash(course.year_recorded)} ·
+  GES source year: ${valueOrDash(course.ges?.source_year)}<br /><br />
 
-        <strong>Interest fit</strong><br />
-        Interest score: ${valueOrDash(course.interest_fit?.score)} · Wanted score: ${valueOrDash(course.interest_fit?.wanted_score)} · Unwanted penalty: ${valueOrDash(course.interest_fit?.unwanted_penalty)}
-      </div>
+  <strong>Interest fit</strong><br />
+  Interest score: ${valueOrDash(course.interest_fit?.score)} ·
+  Wanted score: ${valueOrDash(course.interest_fit?.wanted_score)} ·
+  Unwanted penalty: ${valueOrDash(course.interest_fit?.unwanted_penalty)} ·
+  Matched interests: ${valueOrDash(course.interest_fit?.matched_interest_count)}<br /><br />
+
+  ${renderScoreBreakdown(course)}
+</div>
     `;
 
     card.querySelector(".read-more").addEventListener("click", () => {
@@ -446,6 +565,14 @@ function setupFilters() {
     persistFinderState();
     debouncedFetchRankedCourses();
   });
+
+  document.getElementById("bandMinPercentage").addEventListener("input", () => {
+  document.getElementById("bandMinPercentageValue").textContent =
+    `${document.getElementById("bandMinPercentage").value}%`;
+
+  persistFinderState();
+  debouncedFetchRankedCourses();
+});
 
   document.getElementById("preferredUniversities").addEventListener("change", fetchRankedCourses);
   document.getElementById("onlyWanted").addEventListener("change", fetchRankedCourses);

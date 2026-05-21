@@ -1,0 +1,113 @@
+function isJcProfile(qualificationType) {
+  const normalized = String(qualificationType || "").toLowerCase();
+
+  return (
+    normalized.includes("a-level") ||
+    normalized.includes("a level") ||
+    normalized.includes("jc") ||
+    normalized.includes("junior college")
+  );
+}
+
+function buildCompareAssessmentPrompt(payload) {
+  const userProfile = payload.userProfile || {};
+  const latestAcademicProfile = userProfile.academic_profiles?.[0] || null;
+  const latestPreference = userProfile.preferences?.[0] || null;
+
+  const qualificationType =
+    latestAcademicProfile?.qualification_type ||
+    payload.preferences?.user_context?.qualification_type ||
+    "Unknown";
+
+  const isJc = isJcProfile(qualificationType);
+
+  const userContext = {
+    user_id: userProfile.user_id ?? payload.userId,
+    full_name: userProfile.full_name || "Unknown",
+    email: userProfile.email || "Unknown",
+    citizenship: userProfile.citizenship || "Unknown",
+    user_postal_code:
+      userProfile.postal_code ||
+      latestPreference?.postal_code ||
+      payload.preferences?.user_context?.postal_code ||
+      "Unknown",
+    qualification_type: qualificationType,
+    admissions_metric_to_use: isJc
+      ? "Use tenth_percentile_uas_70 for JC/A-Level comparison. Do not use tenth_percentile_rp as the main admissions comparison metric."
+      : "Use min_gpa for Polytechnic/Diploma comparison.",
+    academic_profile: latestAcademicProfile,
+  };
+
+  return `
+You are comparing two Singapore university courses for a student.
+
+Use the provided JSON data first.
+Use web search only for missing or detail-heavy facts such as:
+1. official curriculum/course structure,
+2. official tuition fees by citizenship,
+3. official programme structure or modules.
+
+Do NOT use web search to find university campus postal codes if university_postal_code is supplied in the course JSON.
+Use the supplied user_postal_code and university_postal_code fields for distance/travel comparison.
+If exact travel time cannot be determined from the supplied data, compare distance burden qualitatively using the postal/location data and say it is an estimate.
+
+Do not invent fees, curriculum details, travel distance, or university policies.
+If web search cannot confirm something, say it is unknown.
+
+IMPORTANT USER CONTEXT:
+${JSON.stringify(userContext, null, 2)}
+
+The user's citizenship is:
+${userContext.citizenship}
+
+Use the user's citizenship when assessing tuition fees or total cost.
+If citizenship is "Singapore Citizen", compare against Singapore Citizen subsidised fees where official fee data is available.
+If citizenship is "Permanent Resident" or "International Student", use the matching official fee category where available.
+If official fee data cannot be verified, say the fee comparison is unknown.
+
+ADMISSIONS COMPARISON RULE:
+${isJc
+  ? `The student is a JC/A-Level profile. For admissions/cutoff comparison, use tenth_percentile_uas_70 as the main cutoff metric. Do not compare using tenth_percentile_rp unless tenth_percentile_uas_70 is missing.`
+  : `The student is a Polytechnic/Diploma profile. For admissions/cutoff comparison, use min_gpa as the main cutoff metric.`
+}
+
+INTAKE SIZE RULE:
+Use intake_size as a competitiveness signal.
+A smaller intake size usually means fewer available places and potentially higher competition, but do not treat it as the only factor.
+Compare intake size together with cutoff gap, admissions cutoff, prestige, and course demand.
+
+User interests and preferences:
+${JSON.stringify(payload.preferences?.interests, null, 2)}
+
+Comparison focus:
+${JSON.stringify(payload.preferences?.compare_factors, null, 2)}
+
+Left course:
+${JSON.stringify(payload.leftCourse, null, 2)}
+
+Right course:
+${JSON.stringify(payload.rightCourse, null, 2)}
+
+Assess:
+- citizenship-based total cost using the user's citizenship if official fee data is available
+- distance/travel burden using user_postal_code and university_postal_code
+- curriculum alignment with wanted interests
+- risks from unfavoured interests
+- salary and employability
+- admissions cut-off using ${
+    isJc ? "tenth_percentile_uas_70 for JC/A-Level" : "min_gpa for Polytechnic/Diploma"
+  }
+- cutoff gap after boost if available
+- intake size as a competitiveness factor
+- prestige score
+- recommendation score if available
+
+Prefer official university and Singapore government/MOE pages.
+Keep the answer practical for choosing between the two courses.
+Do not overstate certainty.
+`;
+}
+
+module.exports = {
+  buildCompareAssessmentPrompt,
+};

@@ -9,7 +9,8 @@ const coursePriorityRecommendationRoutes = require("./routers/coursePriorityReco
 const userProfileRoutes = require("./routers/userProfile");
 const interestGroupRoutes = require("./routers/interestGroup");
 const courseRoutes = require("./routers/course");
-
+const courseCompareRoutes = require("./routers/courseCompare");
+const compareAiAssessmentRoutes = require("./routers/courseAiAssessment");
 app.use(express.json());
 
 app.use(express.static(path.join(__dirname, "public")));
@@ -21,7 +22,8 @@ app.use("/course-priority-recommendation", coursePriorityRecommendationRoutes);
 app.use("/interest-groups", interestGroupRoutes);
 app.use("/users", userProfileRoutes);
 app.use("/courses", courseRoutes);
-
+app.use("/course-compare", courseCompareRoutes);
+app.use("/compare-ai-assessment", compareAiAssessmentRoutes);
 app.get("/", (req, res) => {
   res.redirect("/course-finder.html");
 });
