@@ -21,6 +21,8 @@ model User {
   // keep your existing relations here
   academic_profiles UserAcademicProfile[]
   preferences       UserPreference[]
+  interest_preference      UserInterestPreference?
+course_finder_preference UserCourseFinderPreference?
 
   @@map("users")
 }
@@ -205,4 +207,36 @@ model CompareAiAssessment {
   assessment_result  Json
   created_at         DateTime @default(now())
   updated_at         DateTime @updatedAt
+}
+
+model UserInterestPreference {
+  interest_preference_id Int      @id @default(autoincrement())
+  user_id                Int      @unique
+  wanted_interests       Json?
+  unwanted_interests     Json?
+  created_at             DateTime @default(now())
+  updated_at             DateTime @default(now()) @updatedAt
+
+  user User @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+  @@map("user_interest_preferences")
+}
+
+model UserCourseFinderPreference {
+  finder_preference_id   Int      @id @default(autoincrement())
+  user_id                Int      @unique
+  gpa_boost              String?  @default("0")
+  band_min_percentage    String?  @default("80")
+  selected_universities  Json?
+  only_wanted            Boolean  @default(false)
+  exclude_unwanted       Boolean  @default(false)
+  course_keyword         String?  @default("")
+  active_uni             String?  @default("All")
+  priority_space         Json?
+  created_at             DateTime @default(now())
+  updated_at             DateTime @default(now()) @updatedAt
+
+  user User @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+  @@map("user_course_finder_preferences")
 }
