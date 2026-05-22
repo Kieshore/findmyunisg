@@ -113,23 +113,11 @@ async function getCurrentUser(userId) {
     },
     select: {
       user_id: true,
-      first_name: true,
       full_name: true,
+      first_name: true,
       email: true,
       citizenship: true,
       postal_code: true,
-      academic_profiles: {
-        orderBy: {
-          created_at: "desc",
-        },
-        take: 1,
-      },
-      preferences: {
-        orderBy: {
-          created_at: "desc",
-        },
-        take: 1,
-      },
     },
   });
 

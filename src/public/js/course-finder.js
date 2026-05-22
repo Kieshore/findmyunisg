@@ -5,8 +5,19 @@ let courseAbortController = null;
 
 let compareMode = false;
 let selectedCompareCourses = new Map();
-let userAcademicValue = 0;
+
+let userAcademicValue = null;
+let userAcademicScoreMode = null;
 let userQualificationType = "";
+
+function toNumberOrNull(value) {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  const parsed = Number(value);
+  return Number.isNaN(parsed) ? null : parsed;
+}
 
 function getCleanFinderState() {
   const saved = getFinderState();
@@ -62,12 +73,14 @@ function persistFinderState() {
 }
 
 function applySavedFinderStateToInputs() {
-  document.getElementById("gpaBoost").value = savedFinderState.gpaBoost ?? "0.17";
-  document.getElementById("bandMinPercentage").value =
-  savedFinderState.bandMinPercentage ?? "80";
+  const gpaBoostInput = document.getElementById("gpaBoost");
+  const bandMinInput = document.getElementById("bandMinPercentage");
+  const bandMinValue = document.getElementById("bandMinPercentageValue");
 
-document.getElementById("bandMinPercentageValue").textContent =
-  `${savedFinderState.bandMinPercentage ?? "80"}%`;
+  gpaBoostInput.value = savedFinderState.gpaBoost ?? "0";
+  bandMinInput.value = savedFinderState.bandMinPercentage ?? "80";
+  bandMinValue.textContent = `${savedFinderState.bandMinPercentage ?? "80"}%`;
+
   document.getElementById("onlyWanted").checked = Boolean(savedFinderState.onlyWanted);
   document.getElementById("excludeUnwanted").checked = Boolean(savedFinderState.excludeUnwanted);
   document.getElementById("courseKeyword").value = savedFinderState.courseKeyword || "";
@@ -77,10 +90,6 @@ document.getElementById("bandMinPercentageValue").textContent =
   [...document.getElementById("preferredUniversities").options].forEach(option => {
     option.selected = savedUnis.includes(option.value);
   });
-}
-
-function csv(values) {
-  return values.map(value => String(value).trim()).filter(Boolean).join(",");
 }
 
 function getPriorityQueryParams(params) {
@@ -108,12 +117,17 @@ function buildRecommendationQuery() {
 
   params.set("userId", CURRENT_USER_ID);
   params.set("difference", document.getElementById("gpaBoost").value || "0");
+  params.set("band_min_percentage", document.getElementById("bandMinPercentage").value || "80");
+
   params.set(
-  "band_min_percentage",
-  document.getElementById("bandMinPercentage").value || "80"
-);
-  params.set("exclude_unwanted_interests", document.getElementById("excludeUnwanted").checked ? "true" : "false");
-  params.set("only_wanted_interests", document.getElementById("onlyWanted").checked ? "true" : "false");
+    "exclude_unwanted_interests",
+    document.getElementById("excludeUnwanted").checked ? "true" : "false"
+  );
+
+  params.set(
+    "only_wanted_interests",
+    document.getElementById("onlyWanted").checked ? "true" : "false"
+  );
 
   const hasPrestige = Object.values(state.priority).flat().includes("prestige");
   const selectedUnis = getSelectedUniversityCsv();
@@ -151,7 +165,7 @@ async function fetchRankedCourses() {
 
   state.isLoadingCourses = true;
   state.apiError = null;
-  
+
   renderCourses();
 
   try {
@@ -292,6 +306,7 @@ function setupPriorityDragDrop() {
 
       renderPriority();
       updatePrestigeLock();
+      persistFinderState();
       fetchRankedCourses();
     });
   });
@@ -375,16 +390,16 @@ function renderScoreBreakdown(course) {
         <div>
           <strong>${metric.label || metricKey}</strong>
           <div class="course-meta">
-  ${
-    metricKey === "interest"
-      ? `
-        Wanted score: ${formatPriorityMetricValue(metric.wanted_score)} ·
-        Unwanted penalty: ${formatPriorityMetricValue(metric.unwanted_penalty)} ·
-        Signed score: ${formatPriorityMetricValue(metric.signed_score)}
-      `
-      : `Raw value: ${formatPriorityMetricValue(metric.raw_value)}`
-  }
-</div>
+            ${
+              metricKey === "interest"
+                ? `
+                  Wanted score: ${formatPriorityMetricValue(metric.wanted_score)} ·
+                  Unwanted penalty: ${formatPriorityMetricValue(metric.unwanted_penalty)} ·
+                  Signed score: ${formatPriorityMetricValue(metric.signed_score)}
+                `
+                : `Raw value: ${formatPriorityMetricValue(metric.raw_value)}`
+            }
+          </div>
         </div>
 
         <div class="score-formula">
@@ -477,25 +492,25 @@ function renderCourses() {
 
       <div class="score-box">
         <div class="score">${getScore(course)}</div>
-        <button class="read-more">Read more</button>
+        <button class="read-more" type="button">Read more</button>
       </div>
 
       <div class="details">
-  <strong>Admissions</strong><br />
-  Min GPA: ${valueOrDash(course.min_gpa)} ·
-  10th percentile RP: ${valueOrDash(course.tenth_percentile_rp)} ·
-  UAS 70: ${valueOrDash(course.tenth_percentile_uas_70)}<br />
-  Year recorded: ${valueOrDash(course.year_recorded)} ·
-  GES source year: ${valueOrDash(course.ges?.source_year)}<br /><br />
+        <strong>Admissions</strong><br />
+        Min GPA: ${valueOrDash(course.min_gpa)} ·
+        10th percentile RP: ${valueOrDash(course.tenth_percentile_rp)} ·
+        UAS 70: ${valueOrDash(course.tenth_percentile_uas_70)}<br />
+        Year recorded: ${valueOrDash(course.year_recorded)} ·
+        GES source year: ${valueOrDash(course.ges?.source_year)}<br /><br />
 
-  <strong>Interest fit</strong><br />
-  Interest score: ${valueOrDash(course.interest_fit?.score)} ·
-  Wanted score: ${valueOrDash(course.interest_fit?.wanted_score)} ·
-  Unwanted penalty: ${valueOrDash(course.interest_fit?.unwanted_penalty)} ·
-  Matched interests: ${valueOrDash(course.interest_fit?.matched_interest_count)}<br /><br />
+        <strong>Interest fit</strong><br />
+        Interest score: ${valueOrDash(course.interest_fit?.score)} ·
+        Wanted score: ${valueOrDash(course.interest_fit?.wanted_score)} ·
+        Unwanted penalty: ${valueOrDash(course.interest_fit?.unwanted_penalty)} ·
+        Matched interests: ${valueOrDash(course.interest_fit?.matched_interest_count)}<br /><br />
 
-  ${renderScoreBreakdown(course)}
-</div>
+        ${renderScoreBreakdown(course)}
+      </div>
     `;
 
     card.querySelector(".read-more").addEventListener("click", () => {
@@ -510,20 +525,20 @@ function renderCourses() {
 function attachCompareCheckbox(card, course) {
   const input = card.querySelector(".course-compare-input");
 
-input.checked = selectedCompareCourses.has(String(course.course_id));
-card.classList.toggle("compare-selected", input.checked);
+  input.checked = selectedCompareCourses.has(String(course.course_id));
+  card.classList.toggle("compare-selected", input.checked);
 
-input.addEventListener("change", () => {
-  if (input.checked) {
-    selectedCompareCourses.set(String(course.course_id), course);
-    card.classList.add("compare-selected");
-  } else {
-    selectedCompareCourses.delete(String(course.course_id));
-    card.classList.remove("compare-selected");
-  }
+  input.addEventListener("change", () => {
+    if (input.checked) {
+      selectedCompareCourses.set(String(course.course_id), course);
+      card.classList.add("compare-selected");
+    } else {
+      selectedCompareCourses.delete(String(course.course_id));
+      card.classList.remove("compare-selected");
+    }
 
-  updateCompareButton();
-});
+    updateCompareButton();
+  });
 }
 
 function updateCompareButton() {
@@ -547,6 +562,9 @@ function setupCompareMode() {
       document.querySelectorAll(".course-compare-input").forEach(input => {
         input.checked = false;
       });
+      document.querySelectorAll(".course-card").forEach(card => {
+        card.classList.remove("compare-selected");
+      });
     }
 
     updateCompareButton();
@@ -560,19 +578,23 @@ function setupCompareMode() {
 }
 
 function setupFilters() {
-  document.getElementById("gpaBoost").addEventListener("input", () => {
-    updateBoostedAcademicScore();
-    persistFinderState();
-    debouncedFetchRankedCourses();
+  const gpaBoostInput = document.getElementById("gpaBoost");
+
+  ["input", "change"].forEach(eventName => {
+    gpaBoostInput.addEventListener(eventName, () => {
+      updateBoostedAcademicScore();
+      persistFinderState();
+      debouncedFetchRankedCourses();
+    });
   });
 
   document.getElementById("bandMinPercentage").addEventListener("input", () => {
-  document.getElementById("bandMinPercentageValue").textContent =
-    `${document.getElementById("bandMinPercentage").value}%`;
+    document.getElementById("bandMinPercentageValue").textContent =
+      `${document.getElementById("bandMinPercentage").value}%`;
 
-  persistFinderState();
-  debouncedFetchRankedCourses();
-});
+    persistFinderState();
+    debouncedFetchRankedCourses();
+  });
 
   document.getElementById("preferredUniversities").addEventListener("change", fetchRankedCourses);
   document.getElementById("onlyWanted").addEventListener("change", fetchRankedCourses);
@@ -586,11 +608,31 @@ function setupFilters() {
 
 async function loadUserBoostLabel() {
   try {
-    const json = await fetchJson(`/users/${CURRENT_USER_ID}/profile`);
-    const profile = json.data?.academic_profiles?.[0];
+    const json = await fetchJson("/users/me/academic-profile");
+    const profile = json.data;
 
-    const qualification = String(profile?.qualification_type || "").trim().toLowerCase();
-    userQualificationType = qualification;
+    const boostLabel = document.getElementById("boostLabel");
+    const boostInput = document.getElementById("gpaBoost");
+    const academicScoreLabel = document.getElementById("academicScoreLabel");
+    const academicScoreInput = document.getElementById("academicScore");
+
+    if (!boostLabel || !boostInput || !academicScoreLabel || !academicScoreInput) {
+      console.warn("Missing boost-related HTML elements.");
+      return;
+    }
+
+    if (!profile) {
+      userAcademicValue = null;
+      userAcademicScoreMode = null;
+      userQualificationType = "";
+
+      boostLabel.textContent = "Academic boost";
+      academicScoreLabel.textContent = "Academic score after boost";
+      academicScoreInput.value = "";
+      return;
+    }
+
+    const qualification = String(profile.qualification_type || "").trim().toLowerCase();
 
     const isAlevel =
       qualification.includes("a-level") ||
@@ -603,39 +645,59 @@ async function loadUserBoostLabel() {
       qualification.includes("polytechnic") ||
       qualification.includes("diploma");
 
-    const boostLabel = document.getElementById("boostLabel");
-    const boostInput = document.getElementById("gpaBoost");
-    const academicScoreLabel = document.getElementById("academicScoreLabel");
-
     if (isAlevel) {
-      userAcademicValue = Number(profile?.rank_points ?? profile?.uas_70 ?? 0);
+      const gradYear = Number(profile.graduation_year || 0);
+      const isOldRpSystem = gradYear && gradYear <= 2024;
 
-      boostLabel.textContent = "RP boost";
-      academicScoreLabel.textContent = "RP after boost";
+      userQualificationType = "a_level";
+      userAcademicScoreMode = isOldRpSystem ? "rp" : "uas70";
+
+      userAcademicValue = isOldRpSystem
+        ? toNumberOrNull(profile.rank_points)
+        : toNumberOrNull(profile.uas_70);
+
+      boostLabel.textContent = isOldRpSystem ? "RP boost" : "UAS 70 boost";
+      academicScoreLabel.textContent = isOldRpSystem
+        ? "RP after boost"
+        : "UAS 70 after boost";
+
       boostInput.step = "0.1";
-      boostInput.placeholder = "e.g. 2.5";
+      boostInput.placeholder = isOldRpSystem ? "e.g. 2.5" : "e.g. 1.5";
     } else if (isDiploma) {
-      userAcademicValue = Number(profile?.projected_gpa ?? profile?.current_gpa ?? 0);
+      userQualificationType = "diploma";
+      userAcademicScoreMode = "gpa";
+
+      userAcademicValue = toNumberOrNull(
+        profile.projected_gpa ?? profile.current_gpa
+      );
 
       boostLabel.textContent = "GPA boost";
       academicScoreLabel.textContent = "GPA after boost";
+
       boostInput.step = "0.01";
       boostInput.placeholder = "e.g. 0.15";
     } else {
-      userAcademicValue = 0;
+      userAcademicValue = null;
+      userAcademicScoreMode = null;
+      userQualificationType = "";
 
       boostLabel.textContent = "Academic boost";
       academicScoreLabel.textContent = "Academic score after boost";
-      boostInput.step = "0.01";
-      boostInput.placeholder = "Enter boost amount";
+      academicScoreInput.value = "";
+      return;
     }
 
     updateBoostedAcademicScore();
   } catch (error) {
-    console.warn("Unable to load boost label:", error.message);
+    console.warn("Unable to load academic profile for boost:", error.message);
 
-    document.getElementById("boostLabel").textContent = "Academic boost";
-    document.getElementById("academicScoreLabel").textContent = "Academic score after boost";
+    const boostLabel = document.getElementById("boostLabel");
+    const academicScoreLabel = document.getElementById("academicScoreLabel");
+    const academicScoreInput = document.getElementById("academicScore");
+
+    if (boostLabel) boostLabel.textContent = "Academic boost";
+    if (academicScoreLabel) academicScoreLabel.textContent = "Academic score after boost";
+    if (academicScoreInput) academicScoreInput.value = "";
   }
 }
 
@@ -643,20 +705,26 @@ function updateBoostedAcademicScore() {
   const boostInput = document.getElementById("gpaBoost");
   const academicScoreInput = document.getElementById("academicScore");
 
-  if (!academicScoreInput) return;
+  if (!boostInput || !academicScoreInput) return;
 
   const boostValue = Number(boostInput.value || 0);
-  const boostedValue = userAcademicValue + boostValue;
 
-  const isAlevel =
-    userQualificationType.includes("a-level") ||
-    userQualificationType.includes("a level") ||
-    userQualificationType.includes("jc") ||
-    userQualificationType.includes("junior college");
+  if (
+    userAcademicValue === null ||
+    userAcademicValue === undefined ||
+    Number.isNaN(Number(userAcademicValue))
+  ) {
+    academicScoreInput.value = "";
+    return;
+  }
 
-  academicScoreInput.value = isAlevel
-    ? boostedValue.toFixed(1)
-    : boostedValue.toFixed(2);
+  const boostedValue = Number(userAcademicValue) + boostValue;
+
+  if (userAcademicScoreMode === "gpa") {
+    academicScoreInput.value = boostedValue.toFixed(2);
+  } else {
+    academicScoreInput.value = boostedValue.toFixed(1);
+  }
 }
 
 async function initCourseFinder() {
@@ -671,6 +739,8 @@ async function initCourseFinder() {
   state.selectedInterests = getInterestState();
 
   applySavedFinderStateToInputs();
+  await loadUserBoostLabel();
+  updateBoostedAcademicScore();
 
   renderPriority();
   updatePrestigeLock();
@@ -680,7 +750,6 @@ async function initCourseFinder() {
   renderUniversityFilters();
   renderCourses();
 
-  await loadUserBoostLabel();
   await fetchRankedCourses();
 }
 

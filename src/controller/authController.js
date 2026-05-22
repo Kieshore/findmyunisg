@@ -57,8 +57,11 @@ module.exports.me = async function me(req, res) {
       user,
     });
   } catch (error) {
-    return res.status(404).json({
-      message: error.message || "User not found",
+    console.error("Error fetching current user:", error);
+
+    return res.status(401).json({
+      message: "Invalid session",
+      error: error.message,
     });
   }
 };

@@ -1044,3 +1044,36 @@ a {
   font: inherit;
   cursor: pointer;
 }
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.profile-message {
+  margin: 14px 0 0;
+  font-weight: 750;
+  color: var(--muted);
+}
+
+.profile-message.success {
+  color: #24733d;
+}
+
+.profile-message.error {
+  color: var(--danger);
+}
+
+.nav-button {
+  border: 0;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}

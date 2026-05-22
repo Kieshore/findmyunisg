@@ -128,19 +128,27 @@ function calculateBothFromGradeProfile(profile) {
 /**
  * USER-SIDE HELPERS
  *
+ * We keep BOTH scales for every JC/A-Level profile:
+ *
+ * - legacy90 / RP scale:
+ *   Used for older RP-style comparisons and SIT/SUSS-style bands where band_max > 70.
+ *
+ * - uas70 scale:
+ *   Used for newer UAS 70 direct IGP matching.
+ *
  * If graduation_year <= 2024:
- * - treat stored rank_points as legacy-compatible 90-scale
- * - derive 70-scale by /90 * 70
+ * - treat rank_points as RP /90
+ * - derive UAS 70 from rank_points
  *
  * If graduation_year >= 2025:
- * - treat stored rank_points as already being the new 70-scale UAS
- *
- * This avoids needing another Prisma field for now.
+ * - treat uas_70 as the primary stored value
+ * - derive RP /90 from uas_70 for legacy band comparison
  */
 function getUserAlevelScoresFromProfile(profile) {
   if (!profile) {
     return {
       legacy90: null,
+      rp90: null,
       uas70: null,
       scoreMode: null,
     };
@@ -148,33 +156,60 @@ function getUserAlevelScoresFromProfile(profile) {
 
   const graduationYear = toNumber(profile.graduation_year);
   const storedRankPoints = toNumber(profile.rank_points);
+  const storedUas70 = toNumber(profile.uas_70);
 
-  if (storedRankPoints === null) {
-    return {
-      legacy90: null,
-      uas70: null,
-      scoreMode: null,
-    };
-  }
+  const isOldRpSystem = graduationYear !== null && graduationYear <= 2024;
 
-  if (graduationYear !== null && graduationYear <= 2024) {
+  if (isOldRpSystem) {
+    const legacy90 =
+      storedRankPoints !== null
+        ? storedRankPoints
+        : storedUas70 !== null
+          ? Number(((storedUas70 / 70) * 90).toFixed(2))
+          : null;
+
+    const uas70 =
+      storedUas70 !== null
+        ? storedUas70
+        : legacy90 !== null
+          ? convertLegacy90ToUas70(legacy90)
+          : null;
+
     return {
-      legacy90: storedRankPoints,
-      uas70: convertLegacy90ToUas70(storedRankPoints),
+      legacy90,
+      rp90: legacy90,
+      uas70,
       scoreMode: "legacy90_to_uas70",
     };
   }
 
+  const uas70 =
+    storedUas70 !== null
+      ? storedUas70
+      : storedRankPoints !== null && storedRankPoints <= 70
+        ? storedRankPoints
+        : storedRankPoints !== null
+          ? convertLegacy90ToUas70(storedRankPoints)
+          : null;
+
+  const legacy90 =
+    storedRankPoints !== null && storedRankPoints > 70
+      ? storedRankPoints
+      : uas70 !== null
+        ? Number(((uas70 / 70) * 90).toFixed(2))
+        : null;
+
   return {
-    legacy90: null,
-    uas70: storedRankPoints,
-    scoreMode: "uas70_direct",
+    legacy90,
+    rp90: legacy90,
+    uas70,
+    scoreMode: "uas70_to_legacy90",
   };
 }
 
 /**
- * For direct AU-style matching (NUS / NTU / SMU):
- * use revised 70-scale
+ * For direct AU-style matching using tenth_percentile_uas_70:
+ * use revised 70-scale.
  */
 function getUserDirectComparableScore(profile) {
   const scores = getUserAlevelScoresFromProfile(profile);
@@ -182,18 +217,16 @@ function getUserDirectComparableScore(profile) {
 }
 
 /**
- * For current SIT / SUSS band matching:
- * use legacy-compatible score if available
+ * For SIT / SUSS legacy-style band matching:
+ * use RP /90 scale.
  *
- * If the profile is 2025+ and only has 70-scale stored,
- * we currently return null rather than guessing a reverse conversion.
- * This is safer and avoids hidden discrepancies.
+ * For 2025+ users, this reverse-converts UAS 70 to RP 90
+ * until SIT/SUSS publish consistent UAS 70 bands.
  */
 function getUserLegacyBandComparableScore(profile) {
   const scores = getUserAlevelScoresFromProfile(profile);
   return scores.legacy90;
 }
-
 /**
  * Helper for direct course admissions profile comparison:
  * prefers uas70 if available, otherwise falls back to legacy90 conversion result

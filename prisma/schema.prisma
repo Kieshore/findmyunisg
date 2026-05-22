@@ -19,7 +19,7 @@ model User {
   updated_at    DateTime @default(now()) @updatedAt
 
   // keep your existing relations here
-  academic_profiles UserAcademicProfile[]
+  academic_profile UserAcademicProfile?
   preferences       UserPreference[]
   interest_preference      UserInterestPreference?
 course_finder_preference UserCourseFinderPreference?
@@ -28,7 +28,7 @@ course_finder_preference UserCourseFinderPreference?
 }
 model UserAcademicProfile {
   academic_profile_id Int      @id @default(autoincrement())
-  user_id             Int
+  user_id             Int      @unique
   qualification_type  String
   current_gpa         Decimal? @db.Decimal(3, 2)
   projected_gpa       Decimal? @db.Decimal(3, 2)
