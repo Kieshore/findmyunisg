@@ -33,14 +33,14 @@ function getCleanFinderState() {
   };
 }
 
-const savedFinderState = getCleanFinderState();
+let savedFinderState = structuredClone(DEFAULT_FINDER_STATE);
 
 const state = {
-  activeUni: savedFinderState.activeUni || "All",
+  activeUni: "All",
   isLoadingCourses: false,
   apiError: null,
   draggedOption: null,
-  priority: savedFinderState.priority,
+  priority: structuredClone(DEFAULT_FINDER_STATE.priority),
   selectedInterests: getInterestState(),
 };
 
@@ -661,6 +661,15 @@ function updateBoostedAcademicScore() {
 
 async function initCourseFinder() {
   await requireLoggedInUser();
+  await hydrateInterestState();
+  await hydrateFinderState();
+
+  savedFinderState = getCleanFinderState();
+
+  state.activeUni = savedFinderState.activeUni || "All";
+  state.priority = savedFinderState.priority;
+  state.selectedInterests = getInterestState();
+
   applySavedFinderStateToInputs();
 
   renderPriority();

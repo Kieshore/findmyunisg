@@ -897,7 +897,9 @@ document.getElementById("refreshAiAssessmentBtn").addEventListener("click", () =
 
 async function initCompare() {
   await requireLoggedInUser();
-  
+  await hydrateInterestState();
+  await hydrateFinderState();
+
   loadInitialCompareCourses();
   renderCompare();
 

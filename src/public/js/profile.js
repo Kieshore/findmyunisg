@@ -169,10 +169,11 @@ document.getElementById("interestSearch").addEventListener("input", renderIntere
 
 async function initProfile() {
   await requireLoggedInUser();
+  await hydrateInterestState();
 
-  renderTierLists();
   await loadUserProfile();
   await loadInterests();
+  renderTierLists();
 }
 
 initProfile();
