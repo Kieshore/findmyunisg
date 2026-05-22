@@ -1,4 +1,40 @@
-const CURRENT_USER_ID = 12;
+let CURRENT_USER_ID = null;
+let CURRENT_USER = null;
+
+async function getCurrentUser() {
+  if (CURRENT_USER) {
+    return CURRENT_USER;
+  }
+
+  const response = await fetch("/auth/me", {
+    credentials: "include",
+  });
+
+  const json = await response.json();
+
+  if (!response.ok) {
+    window.location.href = "/login.html";
+    throw new Error(json.message || "Authentication required");
+  }
+
+  CURRENT_USER = json.user;
+  CURRENT_USER_ID = json.user.user_id;
+
+  return CURRENT_USER;
+}
+
+async function requireLoggedInUser() {
+  return getCurrentUser();
+}
+
+async function logout() {
+  await fetch("/auth/logout", {
+    method: "POST",
+    credentials: "include",
+  });
+
+  window.location.href = "/login.html";
+}
 
 const STORAGE_KEYS = {
   interestsState: `findmyunisg_interests_${CURRENT_USER_ID}`,

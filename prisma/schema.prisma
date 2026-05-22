@@ -6,21 +6,24 @@ datasource db {
   provider = "postgresql"
 }
 
-model User {
-  user_id     Int      @id @default(autoincrement())
-  first_name  String
-  full_name   String   @unique
-  citizenship String?
-  postal_code String?  
-  email       String   @unique
-  created_at  DateTime @default(now())
 
+model User {
+  user_id       Int      @id @default(autoincrement())
+  first_name    String
+  full_name     String?
+  email         String   @unique
+  password_hash String?
+  citizenship   String?
+  postal_code   String?
+  created_at    DateTime @default(now())
+  updated_at    DateTime @default(now()) @updatedAt
+
+  // keep your existing relations here
   academic_profiles UserAcademicProfile[]
   preferences       UserPreference[]
 
   @@map("users")
 }
-
 model UserAcademicProfile {
   academic_profile_id Int      @id @default(autoincrement())
   user_id             Int

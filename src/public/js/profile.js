@@ -168,6 +168,8 @@ document.getElementById("interestModal").addEventListener("click", event => {
 document.getElementById("interestSearch").addEventListener("input", renderInterestChoices);
 
 async function initProfile() {
+  await requireLoggedInUser();
+
   renderTierLists();
   await loadUserProfile();
   await loadInterests();

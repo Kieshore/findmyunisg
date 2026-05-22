@@ -896,6 +896,8 @@ document.getElementById("refreshAiAssessmentBtn").addEventListener("click", () =
 });
 
 async function initCompare() {
+  await requireLoggedInUser();
+  
   loadInitialCompareCourses();
   renderCompare();
 

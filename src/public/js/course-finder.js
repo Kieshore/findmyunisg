@@ -660,6 +660,7 @@ function updateBoostedAcademicScore() {
 }
 
 async function initCourseFinder() {
+  await requireLoggedInUser();
   applySavedFinderStateToInputs();
 
   renderPriority();

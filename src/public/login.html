@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Login | FindMyUniSG</title>
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <main class="auth-shell">
+    <section class="auth-card">
+      <div class="auth-brand">FindMyUniSG</div>
+      <h1 class="auth-title">Welcome back.</h1>
+      <p class="muted">Log in to continue finding courses that fit you.</p>
+
+      <form id="loginForm" class="auth-form">
+        <div class="field">
+          <label for="email">Email</label>
+          <input id="email" class="input" type="email" autocomplete="email" required />
+        </div>
+
+        <div class="field">
+          <label for="password">Password</label>
+          <input id="password" class="input" type="password" autocomplete="current-password" required />
+        </div>
+
+        <button class="primary-btn full-btn" type="submit">
+          Login
+        </button>
+
+        <p id="authError" class="error-message"></p>
+      </form>
+
+      <p class="auth-switch">
+        New here?
+        <a href="/register.html">Create an account</a>
+      </p>
+    </section>
+  </main>
+
+  <script src="/js/auth.js"></script>
+</body>
+</html>

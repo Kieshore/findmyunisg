@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Register | FindMyUniSG</title>
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <main class="auth-shell">
+    <section class="auth-card">
+      <div class="auth-brand">FindMyUniSG</div>
+      <h1 class="auth-title">Create your account.</h1>
+      <p class="muted">Save your profile, interests, and course comparisons.</p>
+
+      <form id="registerForm" class="auth-form">
+
+        <div class="field">
+          <label for="firstName">First name</label>
+          <input id="firstName" class="input" type="text" required />
+        </div>
+
+        <div class="field">
+          <label for="fullName">Full name</label>
+          <input id="fullName" class="input" type="text" required />
+        </div>
+
+        <div class="field">
+          <label for="email">Email</label>
+          <input id="email" class="input" type="email" autocomplete="email" required />
+        </div>
+
+        <div class="field">
+          <label for="password">Password</label>
+          <input id="password" class="input" type="password" autocomplete="new-password" minlength="8" required />
+        </div>
+
+        <div class="field">
+          <label for="citizenship">Citizenship</label>
+          <select id="citizenship" class="select">
+            <option value="">Select citizenship</option>
+            <option value="Singapore Citizen">Singapore Citizen</option>
+            <option value="Permanent Resident">Permanent Resident</option>
+            <option value="International Student">International Student</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="postalCode">Postal code</label>
+          <input id="postalCode" class="input" type="text" maxlength="6" placeholder="e.g. 529536" />
+        </div>
+
+        <button class="primary-btn full-btn" type="submit">
+          Create account
+        </button>
+
+        <p id="authError" class="error-message"></p>
+      </form>
+
+      <p class="auth-switch">
+        Already have an account?
+        <a href="/login.html">Login</a>
+      </p>
+    </section>
+  </main>
+
+  <script src="/js/auth.js"></script>
+</body>
+</html>
