@@ -251,15 +251,22 @@ function renderPriority() {
   });
 
   const priorityBank = document.getElementById("priorityBank");
-  priorityBank.innerHTML = "";
+priorityBank.innerHTML = "";
 
-  const usedOptions = Object.values(state.priority).flat();
+const usedOptions = Object.values(state.priority).flat();
+const unusedOptions = allPriorityOptions.filter(option => !usedOptions.includes(option));
 
-  allPriorityOptions.forEach(option => {
-    if (!usedOptions.includes(option)) {
-      priorityBank.appendChild(createPriorityPill(option));
-    }
-  });
+if (!unusedOptions.length) {
+  const placeholder = document.createElement("div");
+  placeholder.className = "priority-bank-placeholder";
+  placeholder.textContent = "Drop priority options here to remove them";
+  priorityBank.appendChild(placeholder);
+  return;
+}
+
+unusedOptions.forEach(option => {
+  priorityBank.appendChild(createPriorityPill(option));
+});
 }
 
 function updatePrestigeLock() {
