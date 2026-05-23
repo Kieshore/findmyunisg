@@ -333,9 +333,26 @@ function buildPriorityOrderFromQuery(query) {
     }
   }
 
-  found.sort((a, b) => a.priority - b.priority);
+  found.sort((a, b) => {
+    if (a.priority !== b.priority) {
+      return a.priority - b.priority;
+    }
 
-  return found.map((item) => item.metric);
+    return Object.keys(PRIORITY_METRICS).indexOf(a.metric) -
+      Object.keys(PRIORITY_METRICS).indexOf(b.metric);
+  });
+
+  const priorityOrder = found.map(item => item.metric);
+
+  Object.defineProperty(priorityOrder, "priorityMap", {
+    value: found.reduce((map, item) => {
+      map[item.metric] = item.priority;
+      return map;
+    }, {}),
+    enumerable: false,
+  });
+
+  return priorityOrder;
 }
 
 function validatePriorityOrder(priorityOrder) {
@@ -373,18 +390,47 @@ function validatePrestigeUsage(priorityOrder, explicitUniCode, savedPreferredUni
 }
 
 function buildPriorityWeights(priorityOrder) {
-  const n = priorityOrder.length;
-
-  if (n === 0) {
+  if (!Array.isArray(priorityOrder) || priorityOrder.length === 0) {
     return {};
   }
 
-  const denominator = (n * (n + 1)) / 2;
+  const priorityMap = priorityOrder.priorityMap || {};
+
+  const priorityValues = priorityOrder
+    .map(metricKey => toNumber(priorityMap[metricKey]))
+    .filter(value => value !== null);
+
+  if (!priorityValues.length) {
+    return {};
+  }
+
+  const lowestPriorityNumber = Math.max(...priorityValues);
+
+  const rawWeights = {};
+
+  priorityOrder.forEach(metricKey => {
+    const priorityNumber = toNumber(priorityMap[metricKey]);
+
+    if (priorityNumber === null) {
+      return;
+    }
+
+    rawWeights[metricKey] = lowestPriorityNumber - priorityNumber + 1;
+  });
+
+  const totalWeight = Object.values(rawWeights).reduce(
+    (sum, value) => sum + value,
+    0
+  );
+
+  if (totalWeight === 0) {
+    return {};
+  }
+
   const weights = {};
 
-  priorityOrder.forEach((metricKey, index) => {
-    const rankWeight = n - index;
-    weights[metricKey] = rankWeight / denominator;
+  Object.entries(rawWeights).forEach(([metricKey, rawWeight]) => {
+    weights[metricKey] = rawWeight / totalWeight;
   });
 
   return weights;
