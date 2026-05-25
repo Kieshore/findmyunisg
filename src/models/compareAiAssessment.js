@@ -29,12 +29,7 @@ async function getUserProfile(userId) {
       citizenship: true,
       postal_code: true,
       email: true,
-      academic_profiles: {
-        orderBy: {
-          created_at: "desc",
-        },
-        take: 1,
-      },
+      academic_profile: true,
       preferences: {
         orderBy: {
           created_at: "desc",
