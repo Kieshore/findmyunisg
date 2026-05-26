@@ -16,6 +16,11 @@ const authRoutes = require("./routers/auth");
 const userPreferenceStateRoutes = require("./routers/userPreferenceState");
 app.use(express.json());
 app.use(cookieParser());
+
+app.get("/", (req, res) => {
+  res.redirect("/login.html");
+});
+
 app.use(express.static(path.join(__dirname, "public")));
 
 app.use("/ges", gesRoutes);
@@ -29,10 +34,5 @@ app.use("/course-compare", courseCompareRoutes);
 app.use("/compare-ai-assessment", compareAiAssessmentRoutes);
 app.use("/auth", authRoutes);
 app.use("/user-preferences", userPreferenceStateRoutes);
-
-
-app.get("/", (req, res) => {
-  res.redirect("/course-finder.html");
-});
 
 module.exports = app;
