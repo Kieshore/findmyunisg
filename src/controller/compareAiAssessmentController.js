@@ -4,7 +4,7 @@ module.exports.generateCompareAssessment =
   async function generateCompareAssessment(req, res) {
     try {
       const result = await compareAiAssessmentModel.generateCompareAssessment({
-        userId: req.body.userId,
+        userId: req.userId,
         leftCourse: req.body.leftCourse,
         rightCourse: req.body.rightCourse,
         preferences: req.body.preferences || {},
@@ -18,9 +18,30 @@ module.exports.generateCompareAssessment =
     } catch (error) {
       console.error("Error generating AI comparison assessment:", error);
 
-      return res.status(500).json({
+      return res.status(error.statusCode || 500).json({
         message: "Failed to generate AI comparison assessment",
         error: error.message,
+        data: error.usage ? { quota: error.usage } : undefined,
       });
     }
   };
+
+module.exports.getUsage = async function getUsage(req, res) {
+  try {
+    const quota = await compareAiAssessmentModel.getAiAssessmentUsage(req.userId);
+
+    return res.status(200).json({
+      message: "AI assessment usage retrieved successfully",
+      data: {
+        quota,
+      },
+    });
+  } catch (error) {
+    console.error("Error retrieving AI assessment usage:", error);
+
+    return res.status(500).json({
+      message: "Failed to retrieve AI assessment usage",
+      error: error.message,
+    });
+  }
+};

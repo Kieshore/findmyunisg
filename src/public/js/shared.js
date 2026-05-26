@@ -64,7 +64,10 @@ async function fetchJson(url, options = {}) {
   const json = text ? JSON.parse(text) : {};
 
   if (!response.ok) {
-    throw new Error(json.error || json.message || "Request failed");
+    const error = new Error(json.error || json.message || "Request failed");
+    error.status = response.status;
+    error.data = json.data;
+    throw error;
   }
 
   return json;

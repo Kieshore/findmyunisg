@@ -5,7 +5,10 @@ module.exports.getRankedEligibleCoursesForUser =
     try {
       const result =
         await coursePriorityRecommendationModel.getRankedEligibleCoursesForUser(
-          req.query
+          {
+            ...req.query,
+            userId: req.userId,
+          }
         );
 
       return res.status(200).json({

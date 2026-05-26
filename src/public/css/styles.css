@@ -626,6 +626,18 @@ a {
   transform: translateY(-1px);
 }
 
+.secondary-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  transform: none;
+}
+
+.secondary-btn.is-loading {
+  cursor: progress;
+  opacity: 0.55;
+  transform: none;
+}
+
 .compare-checkbox {
   display: none;
   position: absolute;
@@ -892,6 +904,12 @@ a {
 .ai-assessment-result {
   display: grid;
   gap: 16px;
+}
+
+.ai-quota {
+  margin-top: 8px;
+  font-size: 0.9rem;
+  font-weight: 750;
 }
 
 .ai-summary-box {

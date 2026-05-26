@@ -3,14 +3,134 @@ const compareState = {
   right: null,
   activeSide: null,
   allCourses: [],
+  aiQuota: null,
 };
 
 let courseSearchRequestId = 0;
 let aiAssessmentRequestId = 0;
+let isGeneratingAssessment = false;
 
 let compareCourseCache = [];
 let compareCourseCacheLoaded = false;
 let compareCourseCachePromise = null;
+
+function updateGenerateButtonState() {
+  const generateButton = document.getElementById("refreshAiAssessmentBtn");
+
+  if (!generateButton) return;
+
+  const quotaExhausted = compareState.aiQuota?.remaining <= 0;
+
+  generateButton.disabled = quotaExhausted;
+  generateButton.classList.toggle("is-loading", isGeneratingAssessment);
+  generateButton.textContent = isGeneratingAssessment ? "Generating..." : "Generate";
+}
+
+function formatQuotaReset(resetAt) {
+  if (!resetAt) return "tomorrow";
+
+  return new Date(resetAt).toLocaleString("en-SG", {
+    hour: "numeric",
+    minute: "2-digit",
+    day: "numeric",
+    month: "short",
+  });
+}
+
+function renderAiAssessmentQuota(quota = compareState.aiQuota) {
+  const quotaElement = document.getElementById("aiAssessmentQuota");
+
+  if (!quotaElement) return;
+
+  if (!quota) {
+    quotaElement.textContent = "AI generations left today: --";
+    updateGenerateButtonState();
+    return;
+  }
+
+  compareState.aiQuota = quota;
+  quotaElement.textContent = `${quota.remaining} of ${quota.limit} AI generations left today. Resets ${formatQuotaReset(quota.resetAt)}.`;
+
+  updateGenerateButtonState();
+}
+
+async function hydrateAiAssessmentQuota() {
+  try {
+    const json = await fetchJson("/compare-ai-assessment/usage");
+    renderAiAssessmentQuota(json.data?.quota);
+  } catch (error) {
+    console.warn("Unable to load AI assessment quota:", error.message);
+  }
+}
+
+function stableStringify(value) {
+  if (Array.isArray(value)) {
+    return `[${value.map(stableStringify).join(",")}]`;
+  }
+
+  if (value && typeof value === "object") {
+    return `{${Object.keys(value)
+      .sort()
+      .map(key => `${JSON.stringify(key)}:${stableStringify(value[key])}`)
+      .join(",")}}`;
+  }
+
+  return JSON.stringify(value);
+}
+
+function getAiAssessmentCacheKey() {
+  if (!CURRENT_USER_ID || !compareState.left?.course_id || !compareState.right?.course_id) {
+    return null;
+  }
+
+  return stableStringify({
+    version: "compare_ai_assessment_v1",
+    userId: CURRENT_USER_ID,
+    leftCourseId: getCourseId(compareState.left),
+    rightCourseId: getCourseId(compareState.right),
+    preferences: buildAiAssessmentPreferences(),
+  });
+}
+
+function getStoredAiAssessment() {
+  const cacheKey = getAiAssessmentCacheKey();
+
+  if (!cacheKey) return null;
+
+  try {
+    const stored = JSON.parse(
+      localStorage.getItem(getUserScopedStorageKey("compare_ai_assessment")) || "null"
+    );
+
+    return stored?.cacheKey === cacheKey ? stored.assessment : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveStoredAiAssessment(assessment) {
+  const cacheKey = getAiAssessmentCacheKey();
+
+  if (!cacheKey || !assessment) return;
+
+  localStorage.setItem(
+    getUserScopedStorageKey("compare_ai_assessment"),
+    JSON.stringify({
+      cacheKey,
+      assessment,
+      savedAt: new Date().toISOString(),
+    })
+  );
+}
+
+function restoreStoredAiAssessment() {
+  const storedAssessment = getStoredAiAssessment();
+
+  if (!storedAssessment) return false;
+
+  renderAiAssessmentResult(storedAssessment);
+  return true;
+}
 
 function getSelectedInterestMetrics() {
   const selected = getWantedInterestSelections();
@@ -409,7 +529,6 @@ function buildCompareQuery(search = "") {
 
   const params = new URLSearchParams();
 
-  params.set("userId", CURRENT_USER_ID);
   params.set("search", search || "");
   params.set("difference", finderState.gpaBoost || "0");
   params.set("band_min_percentage", finderState.bandMinPercentage || "80");
@@ -433,7 +552,6 @@ function buildRankedRecommendationQuery() {
 
   const params = new URLSearchParams();
 
-  params.set("userId", CURRENT_USER_ID);
   params.set("difference", finderState.gpaBoost || "0");
   params.set("band_min_percentage", finderState.bandMinPercentage || "80");
   params.set("exclude_unwanted_interests", finderState.excludeUnwanted ? "true" : "false");
@@ -836,11 +954,17 @@ function renderAiAssessmentResult(assessment) {
 async function generateAiAssessment(forceRefresh = false) {
   const requestId = ++aiAssessmentRequestId;
 
+  if (isGeneratingAssessment) {
+    return;
+  }
+
   if (!compareState.left || !compareState.right) {
     renderAiAssessmentLoading("Select two courses to generate an assessment.");
     return;
   }
 
+  isGeneratingAssessment = true;
+  updateGenerateButtonState();
   renderAiAssessmentLoading("Generating AI assessment...");
 
   try {
@@ -852,7 +976,6 @@ async function generateAiAssessment(forceRefresh = false) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        userId: CURRENT_USER_ID,
         leftCourse: compareState.left,
         rightCourse: compareState.right,
         preferences,
@@ -863,14 +986,25 @@ async function generateAiAssessment(forceRefresh = false) {
     if (requestId !== aiAssessmentRequestId) return;
 
     renderAiAssessmentResult(json.data.assessment);
+    saveStoredAiAssessment(json.data.assessment);
+    renderAiAssessmentQuota(json.data.quota);
   } catch (error) {
     if (requestId !== aiAssessmentRequestId) return;
+
+    if (error.data?.quota) {
+      renderAiAssessmentQuota(error.data.quota);
+    }
 
     const status = document.getElementById("aiAssessmentStatus");
 
     if (status) {
       status.style.display = "block";
       status.textContent = `Unable to generate assessment: ${error.message}`;
+    }
+  } finally {
+    if (requestId === aiAssessmentRequestId) {
+      isGeneratingAssessment = false;
+      updateGenerateButtonState();
     }
   }
 }
@@ -892,18 +1026,23 @@ document.getElementById("courseSearchInput").addEventListener("input", event => 
 });
 
 document.getElementById("refreshAiAssessmentBtn").addEventListener("click", () => {
-  generateAiAssessment(true);
+  generateAiAssessment(false);
 });
 
 async function initCompare() {
   await requireLoggedInUser();
   await hydrateInterestState();
   await hydrateFinderState();
+  await hydrateAiAssessmentQuota();
 
   loadInitialCompareCourses();
   renderCompare();
 
   await hydrateSelectedCourses();
+
+  if (!restoreStoredAiAssessment()) {
+    clearAiAssessment();
+  }
 }
 
 initCompare();

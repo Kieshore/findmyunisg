@@ -115,7 +115,6 @@ function buildRecommendationQuery() {
 
   state.selectedInterests = getInterestState();
 
-  params.set("userId", CURRENT_USER_ID);
   params.set("difference", document.getElementById("gpaBoost").value || "0");
   params.set("band_min_percentage", document.getElementById("bandMinPercentage").value || "80");
 

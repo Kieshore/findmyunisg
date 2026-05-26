@@ -2,7 +2,7 @@ const userProfileModel = require("../models/userProfile");
 
 module.exports.getUserProfile = async function getUserProfile(req, res) {
   try {
-    const result = await userProfileModel.getUserProfile(req.params.userId);
+    const result = await userProfileModel.getUserProfile(req.userId);
 
     if (!result) {
       return res.status(404).json({ message: "User profile not found" });

@@ -4,6 +4,132 @@ const openai = require("../lib/openai");
 const { buildCompareAssessmentPrompt } = require("../utils/compareAssessmentPrompt");
 
 const PROMPT_VERSION = "compare_assessment_v3_postal_uas70_intake";
+const DAILY_GENERATE_LIMIT = 3;
+const SG_TIMEZONE = "Asia/Singapore";
+
+function getSingaporeDateParts(date = new Date()) {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: SG_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+
+  const parts = formatter.formatToParts(date).reduce((acc, part) => {
+    acc[part.type] = part.value;
+    return acc;
+  }, {});
+
+  return {
+    year: Number(parts.year),
+    month: Number(parts.month),
+    day: Number(parts.day),
+  };
+}
+
+function getUsageWindow(date = new Date()) {
+  const { year, month, day } = getSingaporeDateParts(date);
+  const usageDate = new Date(Date.UTC(year, month - 1, day));
+  const resetAt = new Date(Date.UTC(year, month - 1, day + 1) - (8 * 60 * 60 * 1000));
+
+  return {
+    usageDate,
+    resetAt,
+  };
+}
+
+function formatUsage(usage, resetAt) {
+  const used = Math.min(Number(usage?.used_count || 0), DAILY_GENERATE_LIMIT);
+
+  return {
+    limit: DAILY_GENERATE_LIMIT,
+    used,
+    remaining: Math.max(DAILY_GENERATE_LIMIT - used, 0),
+    resetAt,
+  };
+}
+
+async function ensureAiAssessmentUsageTable() {
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "ai_assessment_daily_usage" (
+      "usage_id" SERIAL PRIMARY KEY,
+      "user_id" INTEGER NOT NULL REFERENCES "users"("user_id") ON DELETE CASCADE ON UPDATE CASCADE,
+      "usage_date" DATE NOT NULL,
+      "used_count" INTEGER NOT NULL DEFAULT 0,
+      "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await prisma.$executeRawUnsafe(`
+    CREATE UNIQUE INDEX IF NOT EXISTS "ai_assessment_daily_usage_user_id_usage_date_key"
+    ON "ai_assessment_daily_usage"("user_id", "usage_date")
+  `);
+
+  await prisma.$executeRawUnsafe(`
+    CREATE INDEX IF NOT EXISTS "ai_assessment_daily_usage_usage_date_idx"
+    ON "ai_assessment_daily_usage"("usage_date")
+  `);
+}
+
+async function getAiAssessmentUsage(userId) {
+  const parsedUserId = Number(userId);
+
+  if (Number.isNaN(parsedUserId)) {
+    throw new Error("Invalid userId");
+  }
+
+  const { usageDate, resetAt } = getUsageWindow();
+  await ensureAiAssessmentUsageTable();
+
+  const [usage] = await prisma.$queryRaw`
+    SELECT used_count
+    FROM "ai_assessment_daily_usage"
+    WHERE user_id = ${parsedUserId}
+      AND usage_date = ${usageDate}
+    LIMIT 1
+  `;
+
+  return formatUsage(usage, resetAt);
+}
+
+async function consumeAiAssessmentUsage(userId) {
+  const parsedUserId = Number(userId);
+
+  if (Number.isNaN(parsedUserId)) {
+    throw new Error("Invalid userId");
+  }
+
+  const { usageDate, resetAt } = getUsageWindow();
+  await ensureAiAssessmentUsageTable();
+
+  await prisma.$executeRaw`
+    INSERT INTO "ai_assessment_daily_usage" (user_id, usage_date, used_count)
+    VALUES (${parsedUserId}, ${usageDate}, 0)
+    ON CONFLICT (user_id, usage_date) DO NOTHING
+  `;
+
+  const updatedRows = await prisma.$queryRaw`
+    UPDATE "ai_assessment_daily_usage"
+    SET used_count = used_count + 1,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE user_id = ${parsedUserId}
+      AND usage_date = ${usageDate}
+      AND used_count < ${DAILY_GENERATE_LIMIT}
+    RETURNING used_count
+  `;
+
+  if (updatedRows.length === 0) {
+    const error = new Error("Daily AI assessment limit reached. Please try again tomorrow.");
+    error.statusCode = 429;
+    error.usage = await getAiAssessmentUsage(parsedUserId);
+    throw error;
+  }
+
+  const [usage] = updatedRows;
+
+  return formatUsage(usage, resetAt);
+}
 
 function createInputHash(payload) {
   return crypto
@@ -199,10 +325,12 @@ module.exports.generateCompareAssessment = async function generateCompareAssessm
       return {
         cached: true,
         assessment: cached.assessment_result,
+        quota: await getAiAssessmentUsage(parsedUserId),
       };
     }
   }
 
+  const quota = await consumeAiAssessmentUsage(parsedUserId);
   const prompt = buildCompareAssessmentPrompt(payload);
 
   const response = await openai.responses.create({
@@ -345,5 +473,8 @@ Return concise, practical advice.
   return {
     cached: false,
     assessment,
+    quota,
   };
 };
+
+module.exports.getAiAssessmentUsage = getAiAssessmentUsage;

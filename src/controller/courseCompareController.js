@@ -3,7 +3,10 @@ const courseCompareModel = require("../models/courseCompare");
 module.exports.getComparableCoursesForUser =
   async function getComparableCoursesForUser(req, res) {
     try {
-      const result = await courseCompareModel.getComparableCoursesForUser(req.query);
+      const result = await courseCompareModel.getComparableCoursesForUser({
+        ...req.query,
+        userId: req.userId,
+      });
 
       return res.status(200).json({
         message: "Comparable courses retrieved successfully",

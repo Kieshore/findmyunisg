@@ -22,10 +22,10 @@ module.exports.updateTenthPercentileRp = async function updateTenthPercentileRp(
 
 module.exports.getEligibleCoursesForUser = async function getEligibleCoursesForUser(req, res) {
   try {
-    const { userId, difference, limit, uni_code } = req.query;
+    const { difference, limit, uni_code } = req.query;
 
     const result = await courseRecommendationModel.getEligibleCoursesForUser(
-      userId,
+      req.userId,
       difference,
       limit,
       uni_code
