@@ -11,11 +11,16 @@ async function postJson(url, body) {
   const json = await response.json();
 
   if (!response.ok) {
-    throw new Error(json.message || "Request failed");
+    const error = new Error(json.message || "Request failed");
+    error.status = response.status;
+    error.data = json.data;
+    throw error;
   }
 
   return json;
 }
+
+let loginLockTimer = null;
 
 function showAuthError(message) {
   const error = document.getElementById("authError");
@@ -25,9 +30,58 @@ function showAuthError(message) {
   }
 }
 
+function showLoginAttempts(data) {
+  if (!data || data.remainingAttempts === undefined) return;
+
+  const label = data.remainingAttempts === 1 ? "attempt" : "attempts";
+  showAuthError(`Invalid email or password. ${data.remainingAttempts} ${label} left.`);
+}
+
+function formatLockCountdown(lockedUntil) {
+  const remainingMs = new Date(lockedUntil).getTime() - Date.now();
+  const remainingMinutes = Math.max(Math.ceil(remainingMs / 60000), 0);
+
+  return `${remainingMinutes} min`;
+}
+
+function setLoginLockedUntil(lockedUntil) {
+  const button = loginForm?.querySelector("button[type='submit']");
+
+  clearInterval(loginLockTimer);
+
+  if (!button || !lockedUntil) return;
+
+  function renderLock() {
+    const isLocked = new Date(lockedUntil).getTime() > Date.now();
+
+    button.disabled = isLocked;
+    button.textContent = isLocked
+      ? `Login locked (${formatLockCountdown(lockedUntil)})`
+      : "Login";
+
+    if (!isLocked) {
+      clearInterval(loginLockTimer);
+    }
+  }
+
+  renderLock();
+  loginLockTimer = setInterval(renderLock, 1000);
+}
+
 const loginForm = document.getElementById("loginForm");
 
 if (loginForm) {
+  document.getElementById("email")?.addEventListener("input", () => {
+    const button = loginForm.querySelector("button[type='submit']");
+
+    clearInterval(loginLockTimer);
+    if (button) {
+      button.disabled = false;
+      button.textContent = "Login";
+    }
+    showAuthError("");
+  });
+
   loginForm.addEventListener("submit", async event => {
     event.preventDefault();
     showAuthError("");
@@ -41,6 +95,12 @@ if (loginForm) {
       window.location.href = "/course-finder.html";
     } catch (error) {
       showAuthError(error.message);
+
+      if (error.status === 429 && error.data?.lockedUntil) {
+        setLoginLockedUntil(error.data.lockedUntil);
+      } else {
+        showLoginAttempts(error.data);
+      }
     }
   });
 }

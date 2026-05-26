@@ -30,8 +30,20 @@ module.exports.login = async function login(req, res) {
       user: authModel.sanitizeUser(user),
     });
   } catch (error) {
-    return res.status(400).json({
+    return res.status(error.statusCode || 400).json({
       message: error.message || "Login failed",
+      data: error.lockedUntil
+        ? {
+            lockedUntil: error.lockedUntil,
+            remainingAttempts: error.remainingAttempts,
+            maxAttempts: error.maxAttempts,
+          }
+        : error.remainingAttempts !== undefined
+          ? {
+              remainingAttempts: error.remainingAttempts,
+              maxAttempts: error.maxAttempts,
+            }
+          : undefined,
     });
   }
 };
