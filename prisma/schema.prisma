@@ -13,6 +13,9 @@ model User {
   full_name     String?
   email         String   @unique
   password_hash String?
+  google_id     String?  @unique
+  microsoft_id  String?  @unique
+  last_login_provider String?
   citizenship   String?
   postal_code   String?
   created_at    DateTime @default(now())

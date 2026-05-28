@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const prisma = require("../lib/prisma");
@@ -11,6 +12,36 @@ const COOKIE_OPTIONS = {
 
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOGIN_LOCK_MS = 30 * 60 * 1000;
+const OAUTH_STATE_COOKIE = "oauth_state";
+const OAUTH_COOKIE_OPTIONS = {
+  httpOnly: true,
+  sameSite: "lax",
+  secure: process.env.NODE_ENV === "production",
+  maxAge: 10 * 60 * 1000,
+};
+
+const OAUTH_PROVIDERS = {
+  google: {
+    idColumn: "google_id",
+    clientIdEnv: "GOOGLE_OAUTH_CLIENT_ID",
+    clientSecretEnv: "GOOGLE_OAUTH_CLIENT_SECRET",
+    redirectUriEnv: "GOOGLE_OAUTH_REDIRECT_URI",
+    authorizeUrl: "https://accounts.google.com/o/oauth2/v2/auth",
+    tokenUrl: "https://oauth2.googleapis.com/token",
+    userInfoUrl: "https://www.googleapis.com/oauth2/v3/userinfo",
+    scope: "openid email profile",
+  },
+  microsoft: {
+    idColumn: "microsoft_id",
+    clientIdEnv: "MICROSOFT_OAUTH_CLIENT_ID",
+    clientSecretEnv: "MICROSOFT_OAUTH_CLIENT_SECRET",
+    redirectUriEnv: "MICROSOFT_OAUTH_REDIRECT_URI",
+    authorizeUrl: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+    tokenUrl: "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+    userInfoUrl: "https://graph.microsoft.com/oidc/userinfo",
+    scope: "openid email profile",
+  },
+};
 
 function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase();
@@ -38,6 +69,285 @@ function createToken(user) {
       expiresIn: "24h",
     }
   );
+}
+
+function getOAuthProvider(provider) {
+  const config = OAUTH_PROVIDERS[provider];
+
+  if (!config) {
+    const error = new Error("Unsupported OAuth provider");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return config;
+}
+
+function getOAuthEnv(config) {
+  const clientId = process.env[config.clientIdEnv];
+  const clientSecret = process.env[config.clientSecretEnv];
+
+  if (!clientId || !clientSecret) {
+    const error = new Error("OAuth provider is not configured");
+    error.statusCode = 500;
+    throw error;
+  }
+
+  return {
+    clientId,
+    clientSecret,
+  };
+}
+
+function getBaseUrl(req) {
+  return process.env.APP_BASE_URL || `${req.protocol}://${req.get("host")}`;
+}
+
+function getRedirectUri(provider, config, req) {
+  return process.env[config.redirectUriEnv] || `${getBaseUrl(req)}/auth/${provider}/callback`;
+}
+
+function createOAuthState(provider) {
+  return `${provider}.${crypto.randomBytes(32).toString("base64url")}`;
+}
+
+function assertOAuthState(provider, returnedState, cookieState) {
+  if (!returnedState || !cookieState || returnedState !== cookieState) {
+    const error = new Error("Invalid OAuth session. Please try again.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!cookieState.startsWith(`${provider}.`)) {
+    const error = new Error("OAuth provider mismatch. Please try again.");
+    error.statusCode = 400;
+    throw error;
+  }
+}
+
+async function ensureOAuthUserColumns() {
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE "users"
+      ADD COLUMN IF NOT EXISTS "google_id" TEXT,
+      ADD COLUMN IF NOT EXISTS "microsoft_id" TEXT,
+      ADD COLUMN IF NOT EXISTS "last_login_provider" TEXT
+  `);
+
+  await prisma.$executeRawUnsafe(`
+    CREATE UNIQUE INDEX IF NOT EXISTS "users_google_id_key"
+    ON "users"("google_id")
+    WHERE "google_id" IS NOT NULL
+  `);
+
+  await prisma.$executeRawUnsafe(`
+    CREATE UNIQUE INDEX IF NOT EXISTS "users_microsoft_id_key"
+    ON "users"("microsoft_id")
+    WHERE "microsoft_id" IS NOT NULL
+  `);
+}
+
+async function fetchJsonOrThrow(url, options) {
+  const response = await fetch(url, options);
+  const text = await response.text();
+  const json = text ? JSON.parse(text) : {};
+
+  if (!response.ok) {
+    const error = new Error(json.error_description || json.error || "OAuth request failed");
+    error.statusCode = 502;
+    throw error;
+  }
+
+  return json;
+}
+
+function normalizeOAuthProfile(provider, profile) {
+  const email = normalizeEmail(profile.email || profile.preferred_username || profile.upn);
+  const providerId = profile.sub;
+  const fullName = profile.name || email;
+  const firstName = profile.given_name || fullName?.split(" ")[0] || email?.split("@")[0] || "User";
+
+  if (!providerId || !email) {
+    const error = new Error("OAuth profile is missing required identity fields");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (provider === "google" && profile.email_verified !== true) {
+    const error = new Error("Google account email is not verified");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return {
+    providerId,
+    email,
+    fullName,
+    firstName,
+  };
+}
+
+async function findUserByProviderId(idColumn, providerId) {
+  const rows = await prisma.$queryRawUnsafe(
+    `
+      SELECT user_id, first_name, full_name, email, citizenship, postal_code
+      FROM "users"
+      WHERE "${idColumn}" = $1
+      LIMIT 1
+    `,
+    providerId
+  );
+
+  return rows[0] || null;
+}
+
+async function findUserForOAuthEmail(email) {
+  const rows = await prisma.$queryRaw`
+    SELECT user_id, first_name, full_name, email, citizenship, postal_code, google_id, microsoft_id
+    FROM "users"
+    WHERE email = ${email}
+    LIMIT 1
+  `;
+
+  return rows[0] || null;
+}
+
+async function linkOAuthProviderToUser(userId, provider, idColumn, providerId, profile) {
+  const rows = await prisma.$queryRawUnsafe(
+    `
+      UPDATE "users"
+      SET "${idColumn}" = $1,
+          full_name = COALESCE(full_name, $2),
+          first_name = COALESCE(first_name, $3),
+          last_login_provider = $4,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE user_id = $5
+      RETURNING user_id, first_name, full_name, email, citizenship, postal_code
+    `,
+    providerId,
+    profile.fullName,
+    profile.firstName,
+    provider,
+    userId
+  );
+
+  return rows[0];
+}
+
+async function createOAuthUser(provider, idColumn, providerId, profile) {
+  const rows = await prisma.$queryRawUnsafe(
+    `
+      INSERT INTO "users" (first_name, full_name, email, "${idColumn}", last_login_provider)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING user_id, first_name, full_name, email, citizenship, postal_code
+    `,
+    profile.firstName,
+    profile.fullName,
+    profile.email,
+    providerId,
+    provider
+  );
+
+  return rows[0];
+}
+
+async function upsertOAuthUser(provider, profile) {
+  const config = getOAuthProvider(provider);
+
+  await ensureOAuthUserColumns();
+
+  const byProvider = await findUserByProviderId(config.idColumn, profile.providerId);
+
+  if (byProvider) {
+    await clearFailedLogins(byProvider.email);
+    return linkOAuthProviderToUser(
+      byProvider.user_id,
+      provider,
+      config.idColumn,
+      profile.providerId,
+      profile
+    );
+  }
+
+  const byEmail = await findUserForOAuthEmail(profile.email);
+
+  if (byEmail) {
+    const existingProviderId = byEmail[config.idColumn];
+
+    if (existingProviderId && existingProviderId !== profile.providerId) {
+      const error = new Error("This email is already linked to another OAuth account");
+      error.statusCode = 409;
+      throw error;
+    }
+
+    await clearFailedLogins(profile.email);
+    return linkOAuthProviderToUser(
+      byEmail.user_id,
+      provider,
+      config.idColumn,
+      profile.providerId,
+      profile
+    );
+  }
+
+  await clearFailedLogins(profile.email);
+  return createOAuthUser(provider, config.idColumn, profile.providerId, profile);
+}
+
+function createOAuthAuthorization(provider, req) {
+  const config = getOAuthProvider(provider);
+  const { clientId } = getOAuthEnv(config);
+  const redirectUri = getRedirectUri(provider, config, req);
+  const state = createOAuthState(provider);
+  const url = new URL(config.authorizeUrl);
+
+  url.searchParams.set("client_id", clientId);
+  url.searchParams.set("redirect_uri", redirectUri);
+  url.searchParams.set("response_type", "code");
+  url.searchParams.set("scope", config.scope);
+  url.searchParams.set("state", state);
+  url.searchParams.set("prompt", "select_account");
+
+  return {
+    url: url.toString(),
+    state,
+  };
+}
+
+async function completeOAuthLogin({ provider, code, state, cookieState, req }) {
+  const config = getOAuthProvider(provider);
+  const { clientId, clientSecret } = getOAuthEnv(config);
+
+  if (!code) {
+    const error = new Error("OAuth callback did not include an authorization code");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  assertOAuthState(provider, state, cookieState);
+
+  const tokenBody = new URLSearchParams({
+    client_id: clientId,
+    client_secret: clientSecret,
+    code,
+    redirect_uri: getRedirectUri(provider, config, req),
+    grant_type: "authorization_code",
+  });
+
+  const token = await fetchJsonOrThrow(config.tokenUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: tokenBody.toString(),
+  });
+
+  const profile = await fetchJsonOrThrow(config.userInfoUrl, {
+    headers: {
+      Authorization: `Bearer ${token.access_token}`,
+    },
+  });
+
+  return upsertOAuthUser(provider, normalizeOAuthProfile(provider, profile));
 }
 
 function buildLockError(lockedUntil) {
@@ -230,8 +540,12 @@ async function getCurrentUser(userId) {
 
 module.exports = {
   COOKIE_OPTIONS,
+  OAUTH_STATE_COOKIE,
+  OAUTH_COOKIE_OPTIONS,
   sanitizeUser,
   createToken,
+  createOAuthAuthorization,
+  completeOAuthLogin,
   registerUser,
   loginUser,
   getCurrentUser,

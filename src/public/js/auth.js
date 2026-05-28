@@ -22,12 +22,19 @@ async function postJson(url, body) {
 
 let loginLockTimer = null;
 
+const authErrorFromQuery = new URLSearchParams(window.location.search).get("authError");
+
 function showAuthError(message) {
   const error = document.getElementById("authError");
 
   if (error) {
     error.textContent = message;
   }
+}
+
+if (authErrorFromQuery) {
+  showAuthError(authErrorFromQuery);
+  window.history.replaceState({}, document.title, window.location.pathname);
 }
 
 function showLoginAttempts(data) {

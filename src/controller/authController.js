@@ -60,6 +60,74 @@ module.exports.logout = async function logout(req, res) {
   });
 };
 
+function getOAuthProviderFromRequest(req) {
+  const provider =
+    req.params.provider ||
+    req.path.split("/").filter(Boolean)[0];
+
+  return provider === "outlook" ? "microsoft" : provider;
+}
+
+function redirectOAuthError(res, message) {
+  return res.redirect(`/login.html?authError=${encodeURIComponent(message)}`);
+}
+
+module.exports.oauthStart = async function oauthStart(req, res) {
+  try {
+    const provider = getOAuthProviderFromRequest(req);
+    const result = authModel.createOAuthAuthorization(provider, req);
+
+    res.cookie(
+      authModel.OAUTH_STATE_COOKIE,
+      result.state,
+      authModel.OAUTH_COOKIE_OPTIONS
+    );
+
+    return res.redirect(result.url);
+  } catch (error) {
+    console.error("Error starting OAuth login:", error);
+    return redirectOAuthError(res, error.message || "Unable to start OAuth login");
+  }
+};
+
+module.exports.oauthCallback = async function oauthCallback(req, res) {
+  try {
+    if (req.query.error) {
+      return redirectOAuthError(
+        res,
+        req.query.error_description || "OAuth login was cancelled or denied"
+      );
+    }
+
+    const provider = getOAuthProviderFromRequest(req);
+    const user = await authModel.completeOAuthLogin({
+      provider,
+      code: req.query.code,
+      state: req.query.state,
+      cookieState: req.cookies?.[authModel.OAUTH_STATE_COOKIE],
+      req,
+    });
+    const token = authModel.createToken(user);
+
+    res.clearCookie(authModel.OAUTH_STATE_COOKIE, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+    });
+    res.cookie("auth_token", token, authModel.COOKIE_OPTIONS);
+
+    return res.redirect("/course-finder.html");
+  } catch (error) {
+    console.error("Error completing OAuth login:", error);
+    res.clearCookie(authModel.OAUTH_STATE_COOKIE, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+    });
+    return redirectOAuthError(res, error.message || "OAuth login failed");
+  }
+};
+
 module.exports.me = async function me(req, res) {
   try {
     const user = await authModel.getCurrentUser(req.userId);

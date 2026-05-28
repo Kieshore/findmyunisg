@@ -14,6 +14,7 @@ const compareAiAssessmentRoutes = require("./routers/courseAiAssessment");
 const cookieParser = require("cookie-parser");
 const authRoutes = require("./routers/auth");
 const userPreferenceStateRoutes = require("./routers/userPreferenceState");
+app.set("trust proxy", 1);
 app.use(express.json());
 app.use(cookieParser());
 

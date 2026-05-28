@@ -13,6 +13,9 @@
       <h1 class="auth-title">Welcome back.</h1>
       <p class="muted">Log in to continue finding courses that fit you.</p>
 
+
+
+
       <form id="loginForm" class="auth-form">
         <div class="field">
           <label for="email">Email</label>
@@ -23,6 +26,19 @@
           <label for="password">Password</label>
           <input id="password" class="input" type="password" autocomplete="current-password" required />
         </div>
+      <div class="auth-divider"><span>or</span></div>
+      <div class="oauth-actions">
+        <a class="oauth-btn" href="/auth/google">
+          <img src="/img/google.svg" alt="" class="oauth-icon" />
+          <span>Continue with Google</span>
+        </a>
+
+        <a class="oauth-btn" href="/auth/microsoft">
+          <img src="/img/outlook.svg" alt="" class="oauth-icon" />
+          <span>Continue with Outlook</span>
+        </a>
+      </div>
+
 
         <button class="primary-btn full-btn" type="submit">
           Login
