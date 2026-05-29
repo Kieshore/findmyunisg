@@ -5,6 +5,7 @@ let courseAbortController = null;
 
 let compareMode = false;
 let selectedCompareCourses = new Map();
+const MAX_COMPARE_SELECTIONS = 2;
 
 let userAcademicValue = null;
 let userAcademicScoreMode = null;
@@ -535,11 +536,22 @@ function attachCompareCheckbox(card, course) {
   card.classList.toggle("compare-selected", input.checked);
 
   input.addEventListener("change", () => {
+    const courseId = String(course.course_id);
+
     if (input.checked) {
-      selectedCompareCourses.set(String(course.course_id), course);
+      if (
+        selectedCompareCourses.size >= MAX_COMPARE_SELECTIONS &&
+        !selectedCompareCourses.has(courseId)
+      ) {
+        input.checked = false;
+        card.classList.remove("compare-selected");
+        return;
+      }
+
+      selectedCompareCourses.set(courseId, course);
       card.classList.add("compare-selected");
     } else {
-      selectedCompareCourses.delete(String(course.course_id));
+      selectedCompareCourses.delete(courseId);
       card.classList.remove("compare-selected");
     }
 
@@ -554,7 +566,7 @@ function updateCompareButton() {
   button.disabled = count < 2;
   button.classList.toggle("active", count >= 2);
   button.textContent = count >= 2
-    ? `Compare ${Math.min(count, 2)} selected courses`
+    ? `Compare ${MAX_COMPARE_SELECTIONS} selected courses`
     : "Select at least 2 courses";
 }
 
