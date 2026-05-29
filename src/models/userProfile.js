@@ -125,7 +125,7 @@ function validateAcademicProfile(payload) {
 
   const currentYear = new Date().getFullYear();
 
-  if (graduationYear < 2000 || graduationYear > currentYear + 10) {
+  if (graduationYear < 1950 || graduationYear > currentYear + 10) {
     throw new Error("Graduation year looks invalid");
   }
 

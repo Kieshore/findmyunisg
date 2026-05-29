@@ -197,7 +197,7 @@ function validateAcademicPayload(payload) {
     throw new Error("Please enter your graduation year.");
   }
 
-  if (payload.graduation_year < 2000 || payload.graduation_year > 2040) {
+  if (payload.graduation_year > 2040) {
     throw new Error("Please enter a valid graduation year.");
   }
 
