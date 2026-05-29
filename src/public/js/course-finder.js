@@ -346,6 +346,60 @@ function getScore(course) {
   return score === null || score === undefined ? "—" : `${Number(score).toFixed(1)}/100`;
 }
 
+function isBandBasedUniversity(course) {
+  return ["SIT", "SUSS"].includes(String(course.university_code || "").toUpperCase());
+}
+
+function formatBandRange(bandMetric) {
+  if (!bandMetric) return "—";
+
+  return `${valueOrDash(bandMetric.band_min)}-${valueOrDash(bandMetric.band_max)}`;
+}
+
+function formatBandAdmissionDetails(course) {
+  const bandMetric = course.band_metric;
+
+  if (!bandMetric) {
+    return `
+      Band admission chance: —<br />
+      Year recorded: ${valueOrDash(course.year_recorded)} ·
+      GES source year: ${valueOrDash(course.ges?.source_year)}
+    `;
+  }
+
+  const isGpaBand = String(bandMetric.qualification_type || "")
+    .toLowerCase()
+    .includes("gpa");
+  const scoreLabel = isGpaBand ? "GPA band" : "RP/UAS band";
+  const userScoreLabel = isGpaBand ? "Your GPA" : "Your score";
+  const chanceLabel = bandMetric.percentage_value === null || bandMetric.percentage_value === undefined
+    ? "—"
+    : `${Number(bandMetric.percentage_value).toFixed(0)}%`;
+
+  return `
+    ${scoreLabel}: ${formatBandRange(bandMetric)} ·
+    Admission chance: ${chanceLabel}<br />
+    ${userScoreLabel}: ${valueOrDash(course.benchmark_value)} ·
+    Band: ${valueOrDash(bandMetric.band_label)}<br />
+    Year recorded: ${valueOrDash(course.year_recorded)} ·
+    GES source year: ${valueOrDash(course.ges?.source_year)}
+  `;
+}
+
+function renderAdmissionsDetails(course) {
+  if (isBandBasedUniversity(course)) {
+    return formatBandAdmissionDetails(course);
+  }
+
+  return `
+    Min GPA: ${valueOrDash(course.min_gpa)} ·
+    10th percentile RP: ${valueOrDash(course.tenth_percentile_rp)} ·
+    UAS 70: ${valueOrDash(course.tenth_percentile_uas_70)}<br />
+    Year recorded: ${valueOrDash(course.year_recorded)} ·
+    GES source year: ${valueOrDash(course.ges?.source_year)}
+  `;
+}
+
 function formatPriorityMetricValue(value) {
   if (value === null || value === undefined || value === "") {
     return "—";
@@ -504,11 +558,7 @@ function renderCourses() {
 
       <div class="details">
         <strong>Admissions</strong><br />
-        Min GPA: ${valueOrDash(course.min_gpa)} ·
-        10th percentile RP: ${valueOrDash(course.tenth_percentile_rp)} ·
-        UAS 70: ${valueOrDash(course.tenth_percentile_uas_70)}<br />
-        Year recorded: ${valueOrDash(course.year_recorded)} ·
-        GES source year: ${valueOrDash(course.ges?.source_year)}<br /><br />
+        ${renderAdmissionsDetails(course)}<br /><br />
 
         <strong>Interest fit</strong><br />
         Interest score: ${valueOrDash(course.interest_fit?.score)} ·
