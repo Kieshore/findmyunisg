@@ -48,8 +48,9 @@ Use web search only for missing or detail-heavy facts such as:
 3. official programme structure or modules.
 
 Do NOT use web search to find university campus postal codes if university_postal_code is supplied in the course JSON.
-Use the supplied user_postal_code and university_postal_code fields for distance/travel comparison.
+Use the supplied user_postal_code and university_postal_code fields for distance/travel comparison on Google Maps.
 If exact travel time cannot be determined from the supplied data, compare distance burden qualitatively using the postal/location data and say it is an estimate.
+Return the distance from the user postal code and university postal codes as well as the time taken to travel using public transport.
 
 Do not invent fees, curriculum details, travel distance, or university policies.
 If web search cannot confirm something, say it is unknown.

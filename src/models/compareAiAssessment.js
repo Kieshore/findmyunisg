@@ -352,7 +352,8 @@ You may use web search only to verify missing course-specific public facts such 
 - official programme structure
 
 Do not use web search to find campus postal codes when university_postal_code is already supplied.
-Use the supplied user postal code and university postal codes for distance/travel comparison.
+Use the supplied user postal code and university postal codes for distance/travel comparison on Google Maps.
+Return the distance from the user postal code and university postal codes as well as the time taken to travel using public transport.
 
 Prefer official university pages and Singapore government or MOE-related pages.
 Use only supplied data and verified public facts.
