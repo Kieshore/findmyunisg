@@ -160,9 +160,30 @@ function buildMetrics() {
     { key: "prestige", label: "Prestige score", higherBetter: true },
     { key: "salary", label: "Gross monthly median", higherBetter: true, type: "money" },
     { key: "employability", label: "Overall employment rate", higherBetter: true, type: "percent" },
-    { key: "min_gpa", label: "GPA requirement", higherBetter: false },
-    { key: "tenth_percentile_rp", label: "10th percentile RP", higherBetter: false },
-    { key: "tenth_percentile_uas_70", label: "10th percentile UAS 70", higherBetter: false },
+    {
+      key: "admission_gpa",
+      label: "GPA requirement",
+      bandLabel: "GPA admission chance",
+      higherBetter: false,
+      type: "admission",
+      admissionKind: "gpa",
+    },
+    {
+      key: "admission_rp",
+      label: "10th percentile RP",
+      bandLabel: "RP admission chance",
+      higherBetter: false,
+      type: "admission",
+      admissionKind: "rp",
+    },
+    {
+      key: "admission_uas",
+      label: "10th percentile UAS 70",
+      bandLabel: "UAS admission chance",
+      higherBetter: false,
+      type: "admission",
+      admissionKind: "uas",
+    },
     { key: "cutoff_gap", label: "Cutoff gap after boost", higherBetter: true },
   ];
 }
@@ -203,6 +224,77 @@ function getEmployabilityValue(course) {
     course?.raw?.ges?.employment_rate_overall ??
     null
   );
+}
+
+function isBandBasedUniversity(course) {
+  const universityCode =
+    course?.university_code ??
+    course?.raw?.university_code ??
+    course?.university?.short_name ??
+    course?.raw?.university?.short_name ??
+    "";
+
+  return ["SIT", "SUSS"].includes(String(universityCode).toUpperCase());
+}
+
+function getBandMetric(course) {
+  return course?.band_metric ?? course?.raw?.band_metric ?? null;
+}
+
+function getBandAdmissionKind(course, bandMetric) {
+  if (!bandMetric) return null;
+
+  const qualificationType = String(bandMetric.qualification_type || "").toLowerCase();
+
+  if (qualificationType.includes("gpa")) return "gpa";
+
+  if (isBandBasedUniversity(course)) return "rp";
+
+  const bandMax = Number(bandMetric.band_max);
+  return !Number.isNaN(bandMax) && bandMax > 70 ? "rp" : "uas";
+}
+
+function getAdmissionMetricValue(course, kind) {
+  if (isBandBasedUniversity(course)) {
+    const bandMetric = getBandMetric(course);
+
+    if (getBandAdmissionKind(course, bandMetric) !== kind) {
+      return null;
+    }
+
+    return bandMetric?.percentage_value ?? null;
+  }
+
+  if (kind === "gpa") return course?.min_gpa ?? null;
+  if (kind === "rp") return course?.tenth_percentile_rp ?? null;
+  if (kind === "uas") return course?.tenth_percentile_uas_70 ?? null;
+
+  return null;
+}
+
+function getMetricLabel(course, metric) {
+  if (metric?.type === "admission" && isBandBasedUniversity(course)) {
+    return metric.bandLabel;
+  }
+
+  return metric.label;
+}
+
+function formatMetricValue(course, value, metric) {
+  if (metric?.type === "admission") {
+    if (value === null || value === undefined || value === "") {
+      return formatCompareValue(value);
+    }
+
+    if (isBandBasedUniversity(course)) {
+      const numericValue = Number(value);
+      return Number.isNaN(numericValue) ? formatCompareValue(null) : `${numericValue.toFixed(0)}%`;
+    }
+
+    return value;
+  }
+
+  return formatCompareValue(value, metric.type);
 }
 
 function normalizeCompareCourse(course) {
@@ -252,6 +344,12 @@ function normalizeCompareCourse(course) {
 normalized.salary = getSalaryValue(course);
 
 normalized.employability = getEmployabilityValue(course);
+
+normalized.band_metric =
+  course?.band_metric ??
+  course?.raw?.band_metric ??
+  normalized.raw?.band_metric ??
+  null;
 
 normalized.ges = {
   ...(course?.ges || {}),
@@ -320,6 +418,11 @@ return {
     existing.matched_interest_count ??
     null,
 
+  band_metric:
+    incoming.band_metric ??
+    existing.band_metric ??
+    null,
+
   salary:
     incoming.salary ??
     existing.salary ??
@@ -376,6 +479,10 @@ function saveCompareState() {
 function getMetricValue(course, key, metric = null) {
   if (!course) return null;
 
+  if (metric?.type === "admission") {
+    return getAdmissionMetricValue(course, metric.admissionKind);
+  }
+
   if (metric?.type === "interest_relevance") {
     const selectedInterests = getWantedInterestSelections();
 
@@ -427,10 +534,21 @@ function getStatClass(side, metric) {
   if (Number.isNaN(leftValue) || Number.isNaN(rightValue)) return "";
   if (leftValue === rightValue) return "";
 
+  const leftBandBased = isBandBasedUniversity(compareState.left);
+  const rightBandBased = isBandBasedUniversity(compareState.right);
+
+  if (metric?.type === "admission" && leftBandBased !== rightBandBased) {
+    return "";
+  }
+
   const sideValue = side === "left" ? leftValue : rightValue;
   const otherValue = side === "left" ? rightValue : leftValue;
+  const higherBetter =
+    metric?.type === "admission" && leftBandBased && rightBandBased
+      ? true
+      : metric.higherBetter;
 
-  const isBetter = metric.higherBetter
+  const isBetter = higherBetter
     ? sideValue > otherValue
     : sideValue < otherValue;
 
@@ -485,8 +603,8 @@ function renderCourse(side) {
 
         return `
           <div class="compare-stat ${statClass}">
-            <strong>${metric.label}</strong>
-            <span>${formatCompareValue(value, metric.type)}</span>
+            <strong>${getMetricLabel(course, metric)}</strong>
+            <span>${formatMetricValue(course, value, metric)}</span>
           </div>
         `;
       }).join("")}
