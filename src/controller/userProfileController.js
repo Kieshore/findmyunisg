@@ -40,6 +40,24 @@ module.exports.getMyAcademicProfile = async function getMyAcademicProfile(req, r
   }
 };
 
+module.exports.updateMyProfile = async function updateMyProfile(req, res) {
+  try {
+    const profile = await userProfileModel.updateMyProfile(req.userId, req.body);
+
+    return res.status(200).json({
+      message: "Profile saved successfully",
+      data: profile,
+    });
+  } catch (error) {
+    console.error("Error saving profile:", error);
+
+    return res.status(400).json({
+      message: error.message || "Failed to save profile",
+      error: error.message,
+    });
+  }
+};
+
 module.exports.saveMyAcademicProfile = async function saveMyAcademicProfile(req, res) {
   try {
     const profile = await userProfileModel.saveMyAcademicProfile(

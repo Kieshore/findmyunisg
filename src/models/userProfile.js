@@ -63,6 +63,18 @@ function toNullableString(value) {
   return cleaned || null;
 }
 
+function normalizePostalCode(value) {
+  const cleaned = String(value || "").trim();
+
+  if (!cleaned) return null;
+
+  if (!/^\d{6}$/.test(cleaned)) {
+    throw new Error("Postal code must be 6 digits");
+  }
+
+  return cleaned;
+}
+
 function toNullableInt(value) {
   if (value === null || value === undefined || value === "") return null;
 
@@ -195,6 +207,33 @@ module.exports.getMyAcademicProfile = async function getMyAcademicProfile(userId
   return prisma.userAcademicProfile.findUnique({
     where: {
       user_id: parsedUserId,
+    },
+  });
+};
+
+module.exports.updateMyProfile = async function updateMyProfile(userId, payload) {
+  const parsedUserId = Number(userId);
+
+  if (Number.isNaN(parsedUserId)) {
+    throw new Error("Invalid user ID");
+  }
+
+  const postalCode = normalizePostalCode(payload.postal_code);
+
+  return prisma.user.update({
+    where: {
+      user_id: parsedUserId,
+    },
+    data: {
+      postal_code: postalCode,
+    },
+    select: {
+      user_id: true,
+      first_name: true,
+      full_name: true,
+      email: true,
+      citizenship: true,
+      postal_code: true,
     },
   });
 };

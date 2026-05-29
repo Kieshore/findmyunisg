@@ -1,5 +1,6 @@
 let interests = [];
 let originalAcademicPayload = null;
+let originalBasicPayload = null;
 
 const state = {
   modalTarget: null,
@@ -130,6 +131,25 @@ function hasAcademicChanged() {
   return payloadComparable(getAcademicPayloadFromForm()) !== payloadComparable(originalAcademicPayload);
 }
 
+function getBasicProfilePayloadFromForm() {
+  const elements = getAcademicElements();
+
+  return {
+    postal_code: elements.postalCode?.value.trim() || "",
+  };
+}
+
+function basicPayloadComparable(payload) {
+  return JSON.stringify({
+    postal_code: payload?.postal_code || "",
+  });
+}
+
+function hasBasicProfileChanged() {
+  return basicPayloadComparable(getBasicProfilePayloadFromForm()) !==
+    basicPayloadComparable(originalBasicPayload);
+}
+
 function setAcademicMessage(message = "", type = "") {
   const elements = getAcademicElements();
 
@@ -148,7 +168,16 @@ function updateSaveButtonVisibility() {
 
   if (!elements.saveButton) return;
 
-  elements.saveButton.classList.toggle("hidden", !hasAcademicChanged());
+  elements.saveButton.classList.toggle(
+    "hidden",
+    !hasAcademicChanged() && !hasBasicProfileChanged()
+  );
+}
+
+function validateBasicProfilePayload(payload) {
+  if (payload.postal_code && !/^\d{6}$/.test(payload.postal_code)) {
+    throw new Error("Postal code must be 6 digits.");
+  }
 }
 
 function validateAcademicPayload(payload) {
@@ -290,6 +319,9 @@ async function loadBasicUserProfile() {
     if (elements.postalCode) {
       elements.postalCode.value = user?.postal_code || "";
     }
+
+    originalBasicPayload = getBasicProfilePayloadFromForm();
+    updateSaveButtonVisibility();
   } catch (error) {
     console.warn("Unable to load basic user profile:", error.message);
   }
@@ -319,38 +351,65 @@ async function loadAcademicProfile() {
 
 async function saveAcademicProfile() {
   const elements = getAcademicElements();
-  const payload = getAcademicPayloadFromForm();
-
-  console.log("Save academic profile clicked");
-  console.log("Academic payload being sent:", payload);
+  const academicPayload = getAcademicPayloadFromForm();
+  const basicPayload = getBasicProfilePayloadFromForm();
+  const shouldSaveAcademic = hasAcademicChanged();
+  const shouldSaveBasic = hasBasicProfileChanged();
 
   try {
-    validateAcademicPayload(payload);
+    if (!shouldSaveAcademic && !shouldSaveBasic) {
+      return;
+    }
+
+    if (shouldSaveBasic) {
+      validateBasicProfilePayload(basicPayload);
+    }
+
+    if (shouldSaveAcademic) {
+      validateAcademicPayload(academicPayload);
+    }
 
     if (elements.saveButton) {
       elements.saveButton.disabled = true;
       elements.saveButton.textContent = "Saving...";
     }
 
-    setAcademicMessage("Saving academic profile...", "");
+    setAcademicMessage("Saving profile changes...", "");
 
-    const json = await fetchJson("/users/me/academic-profile", {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
+    if (shouldSaveBasic) {
+      const profileJson = await fetchJson("/users/me/profile", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(basicPayload),
+      });
 
-    console.log("Academic profile save response:", json);
+      originalBasicPayload = {
+        postal_code: profileJson.data?.postal_code || "",
+      };
 
-    const savedPayload = academicProfileRowToPayload(json.data);
+      if (CURRENT_USER) {
+        CURRENT_USER.postal_code = profileJson.data?.postal_code || "";
+      }
+    }
 
-    populateAcademicForm(savedPayload);
-    setAcademicMessage("Academic profile saved.", "success");
+    if (shouldSaveAcademic) {
+      const academicJson = await fetchJson("/users/me/academic-profile", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(academicPayload),
+      });
+
+      populateAcademicForm(academicProfileRowToPayload(academicJson.data));
+    }
+
+    setAcademicMessage("Profile changes saved.", "success");
   } catch (error) {
-    console.error("Academic profile save failed:", error);
-    setAcademicMessage(error.message || "Failed to save academic profile.", "error");
+    console.error("Profile save failed:", error);
+    setAcademicMessage(error.message || "Failed to save profile changes.", "error");
   } finally {
     if (elements.saveButton) {
       elements.saveButton.disabled = false;
@@ -364,6 +423,7 @@ function setupAcademicProfileForm() {
   const elements = getAcademicElements();
 
   const editableInputs = [
+    elements.postalCode,
     elements.qualification,
     elements.school,
     elements.course,
