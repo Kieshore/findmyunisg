@@ -493,7 +493,7 @@ a {
 
     .course-card {
       display: grid;
-      grid-template-columns: 52px 1fr auto;
+      grid-template-columns: 52px 1fr auto 34px;
       gap: 15px;
       align-items: center;
       padding: 18px;
@@ -528,6 +528,48 @@ a {
 
     .score-box { text-align: right; }
     .score { font-size: 1.25rem; font-weight: 900; color: var(--primary-dark); }
+
+    .bookmark-btn {
+      display: grid;
+      place-items: center;
+      width: 32px;
+      height: 36px;
+      border: 0;
+      background: transparent;
+      color: var(--primary-dark);
+      cursor: pointer;
+      padding: 3px;
+      transition: transform 160ms ease, color 160ms ease;
+    }
+
+    .bookmark-btn svg {
+      width: 24px;
+      height: 26px;
+      overflow: visible;
+    }
+
+    .bookmark-btn path {
+      fill: #fff;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linejoin: round;
+      transition: fill 160ms ease;
+    }
+
+    .bookmark-btn.active path {
+      fill: currentColor;
+    }
+
+    .bookmark-btn:hover {
+      transform: translateY(-1px);
+    }
+
+    .bookmark-btn:disabled {
+      cursor: wait;
+      opacity: 0.7;
+      transform: none;
+    }
+
     .read-more {
       margin-top: 9px;
       border: 0;
@@ -640,8 +682,9 @@ a {
 
     @media (max-width: 900px) {
       .grid.two, .tier-columns, .course-main, .checkbox-row { grid-template-columns: 1fr; }
-      .course-card { grid-template-columns: 46px 1fr; }
+      .course-card { grid-template-columns: 46px 1fr 34px; }
       .score-box { grid-column: 2; text-align: left; }
+      .bookmark-btn { grid-column: 3; grid-row: 1; }
       .details { grid-column: 1 / -1; }
       .navbar {
         display: grid;

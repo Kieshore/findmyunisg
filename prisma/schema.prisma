@@ -27,6 +27,7 @@ model User {
   interest_preference      UserInterestPreference?
   course_finder_preference UserCourseFinderPreference?
   ai_assessment_usage AiAssessmentDailyUsage[]
+  saved_courses UserSavedCourse[]
 
   @@map("users")
 }
@@ -96,6 +97,7 @@ model Course {
   admissions        CourseAdmissionsProfile[]
   outcomes          CourseOutcome[]
   related_interests CourseRelatedInterest[]
+  saved_by_users    UserSavedCourse[]
 
   @@unique([university_id, course_name])
   @@map("courses")
@@ -270,4 +272,19 @@ model UserCourseFinderPreference {
   user User @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 
   @@map("user_course_finder_preferences")
+}
+
+model UserSavedCourse {
+  saved_course_id Int      @id @default(autoincrement())
+  user_id         Int
+  course_id       Int
+  saved_at        DateTime @default(now())
+
+  user   User   @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  course Course @relation(fields: [course_id], references: [course_id], onDelete: Cascade)
+
+  @@unique([user_id, course_id])
+  @@index([user_id])
+  @@index([course_id])
+  @@map("user_saved_courses")
 }

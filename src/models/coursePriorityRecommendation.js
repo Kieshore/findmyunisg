@@ -529,7 +529,7 @@ function attachPriorityDebug(course, priorityOrder, priorityWeights, metricStats
     const metricConfig = PRIORITY_METRICS[metricKey];
     const rawValue = metricConfig.getValue(course);
     const normalizedScore = getNormalizedMetricScore(course, metricKey, metricStats);
-    const weight = Number((priorityWeights[metricKey] ?? 0).toFixed(4));
+    const weight = priorityWeights[metricKey] ?? 0;
     const stats = metricStats[metricKey];
 
     const contribution =
@@ -546,7 +546,7 @@ function attachPriorityDebug(course, priorityOrder, priorityWeights, metricStats
       label: metricConfig.label,
       raw_value: rawValue,
       normalized_score: normalizedScore,
-      weight,
+      weight: Number(weight.toFixed(6)),
       weighted_contribution: contribution,
       weighted_contribution_display: `${contribution.toFixed(2)} / ${contributionMax.toFixed(2)}`,
       normalization_context:

@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Saved Courses | FindMyUniSG</title>
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body data-page="saved">
+  <main class="app-shell">
+    <nav class="navbar">
+      <a class="brand" href="/course-finder.html">FindMyUniSG</a>
+      <button class="nav-toggle" type="button" aria-label="Open navigation" aria-expanded="false">&#9776;</button>
+      <div class="nav-links">
+        <a class="nav-link" href="/course-finder.html">Course Finder</a>
+        <a class="nav-link" href="/compare.html">Compare</a>
+        <a class="nav-link active" href="/saved.html">Saved</a>
+        <a class="nav-link" href="/profile.html">Profile</a>
+        <button class="nav-link nav-button" type="button" onclick="logout()">Logout</button>
+      </div>
+    </nav>
+
+    <section class="page active">
+      <h1 class="hero-title">Saved courses</h1>
+
+      <section class="card">
+        <h2>Your shortlist</h2>
+        <p class="field-hint">
+          Rankings update using your latest Course Finder priorities, interests, and filters.
+        </p>
+
+        <div id="courseList" class="course-list saved-course-list"></div>
+      </section>
+    </section>
+  </main>
+
+  <script src="/js/shared.js"></script>
+  <script src="/js/course-finder.js"></script>
+</body>
+</html>

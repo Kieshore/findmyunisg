@@ -6,6 +6,8 @@ let courseAbortController = null;
 let compareMode = false;
 let selectedCompareCourses = new Map();
 const MAX_COMPARE_SELECTIONS = 2;
+const isSavedPage = document.body.dataset.page === "saved";
+let savedCourseIds = new Set();
 
 let userAcademicValue = null;
 let userAcademicScoreMode = null;
@@ -57,6 +59,8 @@ const state = {
 };
 
 function persistFinderState() {
+  if (isSavedPage) return;
+
   const selectedUniversities = [...document.getElementById("preferredUniversities").selectedOptions]
     .map(option => option.value)
     .filter(Boolean);
@@ -77,6 +81,8 @@ function applySavedFinderStateToInputs() {
   const gpaBoostInput = document.getElementById("gpaBoost");
   const bandMinInput = document.getElementById("bandMinPercentage");
   const bandMinValue = document.getElementById("bandMinPercentageValue");
+
+  if (!gpaBoostInput || !bandMinInput || !bandMinValue) return;
 
   gpaBoostInput.value = savedFinderState.gpaBoost ?? "0";
   bandMinInput.value = savedFinderState.bandMinPercentage ?? "80";
@@ -105,6 +111,12 @@ function getPriorityQueryParams(params) {
 }
 
 function getSelectedUniversityCsv() {
+  const preferredUniversities = document.getElementById("preferredUniversities");
+
+  if (!preferredUniversities) {
+    return (savedFinderState.selectedUniversities || []).join(",");
+  }
+
   return [...document.getElementById("preferredUniversities").selectedOptions]
     .map(option => option.value)
     .filter(Boolean)
@@ -113,26 +125,33 @@ function getSelectedUniversityCsv() {
 
 function buildRecommendationQuery() {
   const params = new URLSearchParams();
+  const gpaBoostInput = document.getElementById("gpaBoost");
+  const bandMinInput = document.getElementById("bandMinPercentage");
+  const excludeUnwantedInput = document.getElementById("excludeUnwanted");
+  const onlyWantedInput = document.getElementById("onlyWanted");
 
   state.selectedInterests = getInterestState();
 
-  params.set("difference", document.getElementById("gpaBoost").value || "0");
-  params.set("band_min_percentage", document.getElementById("bandMinPercentage").value || "80");
+  params.set("difference", gpaBoostInput?.value || savedFinderState.gpaBoost || "0");
+  params.set(
+    "band_min_percentage",
+    bandMinInput?.value || savedFinderState.bandMinPercentage || "80"
+  );
 
   params.set(
     "exclude_unwanted_interests",
-    document.getElementById("excludeUnwanted").checked ? "true" : "false"
+    (excludeUnwantedInput?.checked ?? savedFinderState.excludeUnwanted) ? "true" : "false"
   );
 
   params.set(
     "only_wanted_interests",
-    document.getElementById("onlyWanted").checked ? "true" : "false"
+    (onlyWantedInput?.checked ?? savedFinderState.onlyWanted) ? "true" : "false"
   );
 
   const hasPrestige = Object.values(state.priority).flat().includes("prestige");
   const selectedUnis = getSelectedUniversityCsv();
 
-  if (selectedUnis && !hasPrestige) {
+  if (selectedUnis && !hasPrestige && !isSavedPage) {
     params.set("uni_code", selectedUnis);
   }
 
@@ -152,6 +171,78 @@ function buildRecommendationQuery() {
 function flattenCoursesFromPayload(payload) {
   const results = payload?.data?.results || [];
   return results.flatMap(result => Array.isArray(result.courses) ? result.courses : []);
+}
+
+async function hydrateSavedCourses() {
+  try {
+    const json = await fetchJson("/saved-courses");
+    savedCourseIds = new Set((json.data?.courseIds || []).map(id => String(id)));
+  } catch (error) {
+    console.warn("Unable to load saved courses:", error.message);
+    savedCourseIds = new Set();
+  }
+}
+
+async function setCourseSaved(courseId, shouldSave) {
+  const normalizedCourseId = String(courseId);
+
+  try {
+    const json = await fetchJson(`/saved-courses/${normalizedCourseId}`, {
+      method: shouldSave ? "POST" : "DELETE",
+    });
+
+    savedCourseIds = new Set((json.data?.courseIds || []).map(id => String(id)));
+  } catch (error) {
+    console.error("Unable to update saved course:", error);
+    throw error;
+  }
+}
+
+function updateBookmarkButtons() {
+  document.querySelectorAll(".bookmark-btn").forEach(button => {
+    const isSaved = savedCourseIds.has(String(button.dataset.courseId));
+
+    button.classList.toggle("active", isSaved);
+    button.setAttribute("aria-pressed", String(isSaved));
+    button.setAttribute("aria-label", isSaved ? "Remove saved course" : "Save course");
+  });
+}
+
+async function toggleSavedCourse(courseId, shouldSave) {
+  const normalizedCourseId = String(courseId);
+  const previousSavedCourseIds = new Set(savedCourseIds);
+
+  if (shouldSave) {
+    savedCourseIds.add(normalizedCourseId);
+  } else {
+    savedCourseIds.delete(normalizedCourseId);
+  }
+
+  if (isSavedPage && !shouldSave) {
+    renderCourses();
+  } else {
+    updateBookmarkButtons();
+  }
+
+  try {
+    await setCourseSaved(normalizedCourseId, shouldSave);
+
+    if (isSavedPage && !shouldSave) {
+      renderCourses();
+    } else {
+      updateBookmarkButtons();
+    }
+  } catch (error) {
+    savedCourseIds = previousSavedCourseIds;
+
+    if (isSavedPage) {
+      renderCourses();
+    } else {
+      updateBookmarkButtons();
+    }
+
+    alert(error.message || "Unable to update saved course. Please try again.");
+  }
 }
 
 async function fetchRankedCourses() {
@@ -317,6 +408,8 @@ function renderPriority() {
   });
 
   const priorityBank = document.getElementById("priorityBank");
+  if (!priorityBank) return;
+
 priorityBank.innerHTML = "";
 
 const usedOptions = Object.values(state.priority).flat();
@@ -339,13 +432,19 @@ renderPriorityMobileControls(allPriorityOptions);
 }
 
 function updatePrestigeLock() {
+  const preferredUniField = document.getElementById("preferredUniField");
+  const prestigeError = document.getElementById("prestigeError");
+  const preferredUniversities = document.getElementById("preferredUniversities");
+
+  if (!preferredUniField || !prestigeError || !preferredUniversities) return;
+
   const hasPrestige = Object.values(state.priority).flat().includes("prestige");
 
-  document.getElementById("preferredUniField").classList.toggle("disabled-field", hasPrestige);
-  document.getElementById("prestigeError").classList.toggle("active", hasPrestige);
+  preferredUniField.classList.toggle("disabled-field", hasPrestige);
+  prestigeError.classList.toggle("active", hasPrestige);
 
   if (hasPrestige) {
-    [...document.getElementById("preferredUniversities").options].forEach(option => {
+    [...preferredUniversities.options].forEach(option => {
       option.selected = false;
     });
   }
@@ -378,6 +477,8 @@ function setupPriorityDragDrop() {
 function renderUniversityFilters() {
   const universities = ["All", ...new Set(allCourses.map(course => course.university_code).filter(Boolean))];
   const wrapper = document.getElementById("universityFilters");
+
+  if (!wrapper) return;
 
   wrapper.innerHTML = "";
 
@@ -474,11 +575,9 @@ function formatPriorityMetricValue(value) {
 }
 
 function getFinalScoreDisplay(course) {
-  return (
-    course.total_score_display ||
-    course.priority_score_display ||
-    `${Number(course.total_score ?? course.priority_score ?? 0).toFixed(2)} / 100.00`
-  );
+  const score = Number(course.total_score ?? course.priority_score ?? 0);
+
+  return `${Number.isNaN(score) ? "0.00" : score.toFixed(2)} / 100.00`;
 }
 
 function renderScoreBreakdown(course) {
@@ -561,9 +660,137 @@ function renderScoreBreakdown(course) {
   `;
 }
 
+function createCourseCard(course, index) {
+  const card = document.createElement("article");
+  const courseId = String(course.course_id);
+  const isSaved = savedCourseIds.has(courseId);
+  let lastCardTapAt = 0;
+
+  card.className = "course-card";
+  card.dataset.courseId = courseId;
+
+  card.innerHTML = `
+    <label class="compare-checkbox">
+      <input type="checkbox" class="course-compare-input" value="${course.course_id}" />
+    </label>
+
+    <div class="rank">${course.rank_number || index + 1}</div>
+
+    <div class="course-main">
+      <div>
+        <div class="course-name">${course.course_name}</div>
+        <div class="course-meta">${course.university_code || "&mdash;"}</div>
+      </div>
+
+      <div>
+        <div><strong>Median gross salary:</strong> ${moneyOrDash(course.ges?.gross_monthly_median)}</div>
+        <div><strong>Employability:</strong> ${valueOrDash(course.ges?.employment_rate_overall, "%")}</div>
+        <div class="course-meta">Cutoff gap: ${valueOrDash(course.cutoff_gap)} &middot; Intake: ${valueOrDash(course.intake_size)}</div>
+      </div>
+    </div>
+
+    <div class="score-box">
+      <div class="score">${getScore(course)}</div>
+      <button class="read-more" type="button">Read more</button>
+    </div>
+
+    <button
+      class="bookmark-btn ${isSaved ? "active" : ""}"
+      type="button"
+      data-course-id="${course.course_id}"
+      aria-label="${isSaved ? "Remove saved course" : "Save course"}"
+      aria-pressed="${isSaved}"
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M7 4.75C7 3.78 7.78 3 8.75 3h6.5C16.22 3 17 3.78 17 4.75v15.5l-5-3.15-5 3.15V4.75Z"></path>
+      </svg>
+    </button>
+
+    <div class="details">
+      <strong>Admissions</strong><br />
+      ${renderAdmissionsDetails(course)}<br /><br />
+
+      <strong>Interest fit</strong><br />
+      Interest score: ${valueOrDash(course.interest_fit?.score)} &middot;
+      Wanted score: ${valueOrDash(course.interest_fit?.wanted_score)} &middot;
+      Unwanted penalty: ${valueOrDash(course.interest_fit?.unwanted_penalty)} &middot;
+      Matched interests: ${valueOrDash(course.interest_fit?.matched_interest_count)}<br /><br />
+
+      ${renderScoreBreakdown(course)}
+    </div>
+  `;
+
+  card.querySelector(".read-more").addEventListener("click", () => {
+    card.querySelector(".details").classList.toggle("active");
+  });
+
+  card.querySelector(".bookmark-btn").addEventListener("click", async event => {
+    event.stopPropagation();
+
+    const shouldSave = !savedCourseIds.has(courseId);
+    const button = event.currentTarget;
+    button.disabled = true;
+
+    try {
+      await toggleSavedCourse(courseId, shouldSave);
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  function shouldIgnoreSaveGesture(event) {
+    return (
+      event.target.closest("button") ||
+      event.target.closest("input") ||
+      event.target.closest("label") ||
+      event.target.closest("select") ||
+      event.target.closest("a") ||
+      savedCourseIds.has(courseId)
+    );
+  }
+
+  card.addEventListener("dblclick", async event => {
+    if (shouldIgnoreSaveGesture(event)) {
+      return;
+    }
+
+    await toggleSavedCourse(courseId, true);
+  });
+
+  card.addEventListener("pointerup", async event => {
+    if (
+      !["touch", "pen"].includes(event.pointerType) ||
+      shouldIgnoreSaveGesture(event)
+    ) {
+      return;
+    }
+
+    const now = Date.now();
+
+    if (now - lastCardTapAt > 420) {
+      lastCardTapAt = now;
+      return;
+    }
+
+    lastCardTapAt = 0;
+    event.preventDefault();
+    await toggleSavedCourse(courseId, true);
+  });
+
+  if (!isSavedPage) {
+    attachCompareCheckbox(card, course);
+  } else {
+    card.querySelector(".compare-checkbox").remove();
+  }
+
+  return card;
+}
+
 function renderCourses() {
   const list = document.getElementById("courseList");
-  const keyword = document.getElementById("courseKeyword").value.trim().toLowerCase();
+  const keyword = isSavedPage
+    ? ""
+    : document.getElementById("courseKeyword").value.trim().toLowerCase();
 
   if (state.isLoadingCourses) {
     list.innerHTML = `<div class="empty-state">Loading ranked eligible courses...</div>`;
@@ -576,7 +803,14 @@ function renderCourses() {
   }
 
   const filtered = allCourses.filter(course => {
-    const uniMatch = state.activeUni === "All" || course.university_code === state.activeUni;
+    if (isSavedPage && !savedCourseIds.has(String(course.course_id))) {
+      return false;
+    }
+
+    const uniMatch =
+      isSavedPage ||
+      state.activeUni === "All" ||
+      course.university_code === state.activeUni;
     const keywordMatch = !keyword || String(course.course_name || "").toLowerCase().includes(keyword);
     return uniMatch && keywordMatch;
   });
@@ -584,59 +818,16 @@ function renderCourses() {
   list.innerHTML = "";
 
   if (!filtered.length) {
-    list.innerHTML = `<div class="empty-state">No eligible courses match the current filters.</div>`;
+    list.innerHTML = `<div class="empty-state">${
+      isSavedPage
+        ? "No saved courses yet. Save courses from Course Finder to build your shortlist."
+        : "No eligible courses match the current filters."
+    }</div>`;
     return;
   }
 
   filtered.forEach((course, index) => {
-    const card = document.createElement("article");
-    card.className = "course-card";
-
-    card.innerHTML = `
-      <label class="compare-checkbox">
-        <input type="checkbox" class="course-compare-input" value="${course.course_id}" />
-      </label>
-
-      <div class="rank">${course.rank_number || index + 1}</div>
-
-      <div class="course-main">
-        <div>
-          <div class="course-name">${course.course_name}</div>
-          <div class="course-meta">${course.university_code || "—"}</div>
-        </div>
-
-        <div>
-          <div><strong>Median gross salary:</strong> ${moneyOrDash(course.ges?.gross_monthly_median)}</div>
-          <div><strong>Employability:</strong> ${valueOrDash(course.ges?.employment_rate_overall, "%")}</div>
-          <div class="course-meta">Cutoff gap: ${valueOrDash(course.cutoff_gap)} · Intake: ${valueOrDash(course.intake_size)}</div>
-        </div>
-      </div>
-
-      <div class="score-box">
-        <div class="score">${getScore(course)}</div>
-        <button class="read-more" type="button">Read more</button>
-      </div>
-
-      <div class="details">
-        <strong>Admissions</strong><br />
-        ${renderAdmissionsDetails(course)}<br /><br />
-
-        <strong>Interest fit</strong><br />
-        Interest score: ${valueOrDash(course.interest_fit?.score)} ·
-        Wanted score: ${valueOrDash(course.interest_fit?.wanted_score)} ·
-        Unwanted penalty: ${valueOrDash(course.interest_fit?.unwanted_penalty)} ·
-        Matched interests: ${valueOrDash(course.interest_fit?.matched_interest_count)}<br /><br />
-
-        ${renderScoreBreakdown(course)}
-      </div>
-    `;
-
-    card.querySelector(".read-more").addEventListener("click", () => {
-      card.querySelector(".details").classList.toggle("active");
-    });
-
-    attachCompareCheckbox(card, course);
-    list.appendChild(card);
+    list.appendChild(createCourseCard(course, index));
   });
 }
 
@@ -672,6 +863,9 @@ function attachCompareCheckbox(card, course) {
 
 function updateCompareButton() {
   const button = document.getElementById("goCompareBtn");
+
+  if (!button) return;
+
   const count = selectedCompareCourses.size;
 
   button.disabled = count < 2;
@@ -682,7 +876,12 @@ function updateCompareButton() {
 }
 
 function setupCompareMode() {
-  document.getElementById("toggleCompareMode").addEventListener("click", () => {
+  const toggleButton = document.getElementById("toggleCompareMode");
+  const goCompareButton = document.getElementById("goCompareBtn");
+
+  if (!toggleButton || !goCompareButton) return;
+
+  toggleButton.addEventListener("click", () => {
     compareMode = !compareMode;
     document.body.classList.toggle("compare-mode", compareMode);
 
@@ -699,7 +898,7 @@ function setupCompareMode() {
     updateCompareButton();
   });
 
-  document.getElementById("goCompareBtn").addEventListener("click", () => {
+  goCompareButton.addEventListener("click", () => {
     const selected = Array.from(selectedCompareCourses.values()).slice(0, 2);
     saveCompareCourses(selected);
     window.location.href = "/compare.html";
@@ -708,6 +907,8 @@ function setupCompareMode() {
 
 function setupFilters() {
   const gpaBoostInput = document.getElementById("gpaBoost");
+
+  if (!gpaBoostInput) return;
 
   ["input", "change"].forEach(eventName => {
     gpaBoostInput.addEventListener(eventName, () => {
@@ -858,6 +1059,7 @@ function updateBoostedAcademicScore() {
 
 async function initCourseFinder() {
   await requireLoggedInUser();
+  await hydrateSavedCourses();
   await hydrateInterestState();
   await hydrateFinderState();
 
@@ -867,17 +1069,24 @@ async function initCourseFinder() {
   state.priority = savedFinderState.priority;
   state.selectedInterests = getInterestState();
 
-  applySavedFinderStateToInputs();
-  await loadUserBoostLabel();
-  updateBoostedAcademicScore();
+  if (!isSavedPage) {
+    applySavedFinderStateToInputs();
+    await loadUserBoostLabel();
+    updateBoostedAcademicScore();
 
-  renderPriority();
-  updatePrestigeLock();
-  setupPriorityDragDrop();
-  setupFilters();
-  setupCompareMode();
+    renderPriority();
+    updatePrestigeLock();
+    setupPriorityDragDrop();
+    setupFilters();
+    setupCompareMode();
+  }
+
   renderUniversityFilters();
   renderCourses();
+
+  if (isSavedPage && savedCourseIds.size === 0) {
+    return;
+  }
 
   await fetchRankedCourses();
 }
