@@ -109,6 +109,21 @@ async function logout() {
 
 window.logout = logout;
 
+function setupNavToggle() {
+  const navbar = document.querySelector(".navbar");
+  const toggle = document.querySelector(".nav-toggle");
+
+  if (!navbar || !toggle) return;
+
+  toggle.addEventListener("click", () => {
+    const isOpen = navbar.classList.toggle("open");
+    toggle.setAttribute("aria-expanded", String(isOpen));
+    toggle.setAttribute("aria-label", isOpen ? "Close navigation" : "Open navigation");
+  });
+}
+
+setupNavToggle();
+
 function debounce(fn, delay = 350) {
   let timeoutId;
 

@@ -231,6 +231,72 @@ function attachPriorityDrag(element) {
   element.addEventListener("dragstart", () => {
     state.draggedOption = element.dataset.option;
   });
+
+  element.addEventListener("dragend", () => {
+    state.draggedOption = null;
+  });
+}
+
+function getPriorityForOption(option) {
+  return Object.entries(state.priority).find(([, values]) =>
+    Array.isArray(values) && values.includes(option)
+  )?.[0] || "";
+}
+
+function movePriorityOption(option, priorityNumber = "") {
+  Object.keys(state.priority).forEach(key => {
+    state.priority[key] = state.priority[key].filter(item => item !== option);
+  });
+
+  if (priorityNumber && state.priority[priorityNumber]) {
+    state.priority[priorityNumber].push(option);
+  }
+
+  renderPriority();
+  updatePrestigeLock();
+  persistFinderState();
+  fetchRankedCourses();
+}
+
+function renderPriorityMobileControls(options) {
+  const wrapper = document.getElementById("priorityMobileControls");
+
+  if (!wrapper) return;
+
+  wrapper.innerHTML = "";
+
+  options.forEach(option => {
+    const row = document.createElement("label");
+    row.className = "priority-mobile-row";
+
+    const text = document.createElement("span");
+    text.textContent = option[0].toUpperCase() + option.slice(1);
+
+    const select = document.createElement("select");
+    select.className = "select priority-mobile-select";
+
+    [
+      ["", "Not used"],
+      ["1", "Priority 1"],
+      ["2", "Priority 2"],
+      ["3", "Priority 3"],
+      ["4", "Priority 4"],
+    ].forEach(([value, label]) => {
+      const optionElement = document.createElement("option");
+      optionElement.value = value;
+      optionElement.textContent = label;
+      select.appendChild(optionElement);
+    });
+
+    select.value = getPriorityForOption(option);
+
+    select.addEventListener("change", () => {
+      movePriorityOption(option, select.value);
+    });
+
+    row.append(text, select);
+    wrapper.appendChild(row);
+  });
 }
 
 function renderPriority() {
@@ -261,12 +327,15 @@ if (!unusedOptions.length) {
   placeholder.className = "priority-bank-placeholder";
   placeholder.textContent = "Drop priority options here to remove them";
   priorityBank.appendChild(placeholder);
+  renderPriorityMobileControls(allPriorityOptions);
   return;
 }
 
 unusedOptions.forEach(option => {
   priorityBank.appendChild(createPriorityPill(option));
 });
+
+renderPriorityMobileControls(allPriorityOptions);
 }
 
 function updatePrestigeLock() {
@@ -300,21 +369,8 @@ function setupPriorityDragDrop() {
       const option = state.draggedOption;
       if (!option) return;
 
-      Object.keys(state.priority).forEach(key => {
-        state.priority[key] = state.priority[key].filter(item => item !== option);
-      });
-
-      if (zone.id !== "priorityBank") {
-        const priority = zone.dataset.priority;
-        state.priority[priority].push(option);
-      }
-
       state.draggedOption = null;
-
-      renderPriority();
-      updatePrestigeLock();
-      persistFinderState();
-      fetchRankedCourses();
+      movePriorityOption(option, zone.id === "priorityBank" ? "" : zone.dataset.priority);
     });
   });
 }
