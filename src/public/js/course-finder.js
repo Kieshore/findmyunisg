@@ -443,8 +443,12 @@ function formatBandAdmissionDetails(course) {
 }
 
 function renderAdmissionsDetails(course) {
+  const sutdNote = String(course.university_code || "").toUpperCase() === "SUTD"
+    ? `<br /><span class="course-meta"><strong class="notice-label">Disclaimer</strong> SUTD 3.3 cut-off is an estimate and not a fixed admission cut-off.</span>`
+    : "";
+
   if (isBandBasedUniversity(course)) {
-    return formatBandAdmissionDetails(course);
+    return `${formatBandAdmissionDetails(course)}${sutdNote}`;
   }
 
   return `
@@ -453,6 +457,7 @@ function renderAdmissionsDetails(course) {
     UAS 70: ${valueOrDash(course.tenth_percentile_uas_70)}<br />
     Year recorded: ${valueOrDash(course.year_recorded)} ·
     GES source year: ${valueOrDash(course.ges?.source_year)}
+    ${sutdNote}
   `;
 }
 
