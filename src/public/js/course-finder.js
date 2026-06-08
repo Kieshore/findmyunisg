@@ -602,7 +602,7 @@ function renderCourses() {
       <div class="course-main">
         <div>
           <div class="course-name">${course.course_name}</div>
-          <div class="course-meta">${course.university_code || "—"} · ${valueOrDash(course.matched_via)}</div>
+          <div class="course-meta">${course.university_code || "—"}</div>
         </div>
 
         <div>
