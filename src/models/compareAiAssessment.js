@@ -3,9 +3,10 @@ const prisma = require("../lib/prisma");
 const openai = require("../lib/openai");
 const { buildCompareAssessmentPrompt } = require("../utils/compareAssessmentPrompt");
 
-const PROMPT_VERSION = "compare_assessment_v3_postal_uas70_intake";
+const PROMPT_VERSION = "compare_assessment_v6_absolute_course_wording";
 const DAILY_GENERATE_LIMIT = 3;
 const SG_TIMEZONE = "Asia/Singapore";
+const GOOGLE_DISTANCE_MATRIX_URL = "https://maps.googleapis.com/maps/api/distancematrix/json";
 
 function getSingaporeDateParts(date = new Date()) {
   const formatter = new Intl.DateTimeFormat("en-CA", {
@@ -93,6 +94,19 @@ async function getAiAssessmentUsage(userId) {
   return formatUsage(usage, resetAt);
 }
 
+async function assertAiAssessmentUsageAvailable(userId) {
+  const usage = await getAiAssessmentUsage(userId);
+
+  if (usage.remaining <= 0) {
+    const error = new Error("Daily AI assessment limit reached. Please try again tomorrow.");
+    error.statusCode = 429;
+    error.usage = usage;
+    throw error;
+  }
+
+  return usage;
+}
+
 async function consumeAiAssessmentUsage(userId) {
   const parsedUserId = Number(userId);
 
@@ -134,8 +148,238 @@ async function consumeAiAssessmentUsage(userId) {
 function createInputHash(payload) {
   return crypto
     .createHash("sha256")
-    .update(JSON.stringify(payload))
+    .update(JSON.stringify(toJsonSafeValue(payload)))
     .digest("hex");
+}
+
+function isDecimalLike(value) {
+  return (
+    value &&
+    typeof value === "object" &&
+    typeof value.s === "number" &&
+    typeof value.e === "number" &&
+    Array.isArray(value.d)
+  );
+}
+
+function toJsonSafeValue(value) {
+  return JSON.parse(
+    JSON.stringify(value, (_key, entryValue) => {
+      if (typeof entryValue === "bigint") {
+        return entryValue.toString();
+      }
+
+      if (
+        entryValue === undefined ||
+        typeof entryValue === "function" ||
+        typeof entryValue === "symbol"
+      ) {
+        return undefined;
+      }
+
+      if (isDecimalLike(entryValue)) {
+        return entryValue.toString();
+      }
+
+      return entryValue;
+    })
+  );
+}
+
+function normalizeSingaporePostalCode(value) {
+  const digits = String(value || "").replace(/\D/g, "");
+
+  return digits.length === 6 ? digits : null;
+}
+
+function formatSingaporePostalCode(postalCode) {
+  return `Singapore ${postalCode}`;
+}
+
+function getGoogleMapsApiKey() {
+  return (
+    process.env.GOOGLE_MAPS_KEY ||
+    process.env.GOOGLE_MAPS_API_KEY ||
+    process.env.GOOGLE_DISTANCE_MATRIX_API_KEY ||
+    process.env.GOOGLE_MAPS_DISTANCE_API_KEY ||
+    ""
+  );
+}
+
+function removeTravelFields(value) {
+  if (Array.isArray(value)) {
+    return value
+      .filter(item => {
+        if (typeof item !== "string") return true;
+        return !/(postal|distance|travel|commute)/i.test(item);
+      })
+      .map(removeTravelFields);
+  }
+
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+
+  return Object.entries(value).reduce((acc, [key, entryValue]) => {
+    if (/(postal|distance|travel|commute)/i.test(key)) {
+      return acc;
+    }
+
+    acc[key] = removeTravelFields(entryValue);
+    return acc;
+  }, {});
+}
+
+function buildOpenAiAssessmentPayload(payload) {
+  return removeTravelFields(payload);
+}
+
+function buildTravelInput(userProfile, leftCourse, rightCourse) {
+  return {
+    mode: "transit",
+    user_postal_code: normalizeSingaporePostalCode(userProfile?.postal_code),
+    left_university_postal_code: normalizeSingaporePostalCode(
+      leftCourse?.university_postal_code
+    ),
+    right_university_postal_code: normalizeSingaporePostalCode(
+      rightCourse?.university_postal_code
+    ),
+  };
+}
+
+function buildTravelRoute(course, universityPostalCode, status, error = null) {
+  return {
+    course_id: getCourseId(course),
+    course_name: course?.course_name || course?.raw?.course_name || "Unknown course",
+    university_code: getCourseUniversityCode(course),
+    university_postal_code: universityPostalCode,
+    status,
+    error,
+    distance_text: null,
+    distance_meters: null,
+    duration_text: null,
+    duration_seconds: null,
+  };
+}
+
+async function getGoogleTravelComparison(travelInput, leftCourse, rightCourse) {
+  const apiKey = getGoogleMapsApiKey();
+  const routes = {
+    left_course: buildTravelRoute(
+      leftCourse,
+      travelInput.left_university_postal_code,
+      "PENDING"
+    ),
+    right_course: buildTravelRoute(
+      rightCourse,
+      travelInput.right_university_postal_code,
+      "PENDING"
+    ),
+  };
+
+  const comparison = {
+    source: "Google Maps Distance Matrix API",
+    mode: "transit",
+    mode_label: "Public transport",
+    left_course: routes.left_course,
+    right_course: routes.right_course,
+    unavailable_reason: null,
+  };
+
+  if (!travelInput.user_postal_code) {
+    comparison.unavailable_reason = "Add your postal code in Profile to calculate travel time.";
+    comparison.left_course.status = "MISSING_USER_POSTAL_CODE";
+    comparison.left_course.error = comparison.unavailable_reason;
+    comparison.right_course.status = "MISSING_USER_POSTAL_CODE";
+    comparison.right_course.error = comparison.unavailable_reason;
+    return comparison;
+  }
+
+  if (!apiKey) {
+    comparison.unavailable_reason = "Google Maps API key is not configured.";
+    comparison.left_course.status = "MISSING_API_KEY";
+    comparison.left_course.error = comparison.unavailable_reason;
+    comparison.right_course.status = "MISSING_API_KEY";
+    comparison.right_course.error = comparison.unavailable_reason;
+    return comparison;
+  }
+
+  const destinationEntries = [
+    ["left_course", travelInput.left_university_postal_code],
+    ["right_course", travelInput.right_university_postal_code],
+  ].filter(([, postalCode]) => Boolean(postalCode));
+
+  Object.entries(routes).forEach(([key, route]) => {
+    if (!route.university_postal_code) {
+      route.status = "MISSING_UNIVERSITY_POSTAL_CODE";
+      route.error = "University postal code is missing.";
+    }
+  });
+
+  if (!destinationEntries.length) {
+    comparison.unavailable_reason = "University postal codes are missing.";
+    return comparison;
+  }
+
+  try {
+    const params = new URLSearchParams({
+      origins: formatSingaporePostalCode(travelInput.user_postal_code),
+      destinations: destinationEntries
+        .map(([, postalCode]) => formatSingaporePostalCode(postalCode))
+        .join("|"),
+      mode: travelInput.mode,
+      units: "metric",
+      region: "sg",
+      key: apiKey,
+    });
+
+    const response = await fetch(`${GOOGLE_DISTANCE_MATRIX_URL}?${params.toString()}`);
+    const data = await response.json();
+
+    if (!response.ok || data.status !== "OK") {
+      const message =
+        data.error_message ||
+        `Google Maps returned ${data.status || response.status}.`;
+
+      comparison.unavailable_reason = message;
+      destinationEntries.forEach(([key]) => {
+        routes[key].status = data.status || "GOOGLE_MAPS_ERROR";
+        routes[key].error = message;
+      });
+
+      return comparison;
+    }
+
+    const elements = data.rows?.[0]?.elements || [];
+
+    destinationEntries.forEach(([key], index) => {
+      const element = elements[index] || {};
+      const route = routes[key];
+
+      route.status = element.status || "UNKNOWN";
+
+      if (element.status !== "OK") {
+        route.error = `Google Maps route status: ${route.status}.`;
+        return;
+      }
+
+      route.distance_text = element.distance?.text || null;
+      route.distance_meters = element.distance?.value ?? null;
+      route.duration_text = element.duration?.text || null;
+      route.duration_seconds = element.duration?.value ?? null;
+      route.error = null;
+    });
+
+    return comparison;
+  } catch (error) {
+    comparison.unavailable_reason = "Unable to contact Google Maps for travel estimates.";
+    destinationEntries.forEach(([key]) => {
+      routes[key].status = "REQUEST_FAILED";
+      routes[key].error = comparison.unavailable_reason;
+    });
+
+    return comparison;
+  }
 }
 
 async function getUserProfile(userId) {
@@ -303,7 +547,7 @@ module.exports.generateCompareAssessment = async function generateCompareAssessm
     universityData
   );
 
-  const payload = {
+  const fullPayload = {
     prompt_version: PROMPT_VERSION,
     userId: parsedUserId,
     userProfile,
@@ -312,7 +556,16 @@ module.exports.generateCompareAssessment = async function generateCompareAssessm
     rightCourse: enrichedRightCourse,
   };
 
-  const inputHash = createInputHash(payload);
+  const travelInput = buildTravelInput(
+    userProfile,
+    enrichedLeftCourse,
+    enrichedRightCourse
+  );
+  const payload = buildOpenAiAssessmentPayload(fullPayload);
+  const inputHash = createInputHash({
+    ...payload,
+    google_travel_input: travelInput,
+  });
 
   if (!forceRefresh) {
     const cached = await prisma.compareAiAssessment.findUnique({
@@ -330,7 +583,13 @@ module.exports.generateCompareAssessment = async function generateCompareAssessm
     }
   }
 
-  const quota = await consumeAiAssessmentUsage(parsedUserId);
+  await assertAiAssessmentUsageAvailable(parsedUserId);
+
+  const googleTravel = await getGoogleTravelComparison(
+    travelInput,
+    enrichedLeftCourse,
+    enrichedRightCourse
+  );
   const prompt = buildCompareAssessmentPrompt(payload);
 
   const response = await openai.responses.create({
@@ -351,14 +610,11 @@ You may use web search only to verify missing course-specific public facts such 
 - official tuition fees by citizenship
 - official programme structure
 
-Do not use web search to find campus postal codes when university_postal_code is already supplied.
-Use the supplied user postal code and university postal codes for distance/travel comparison on Google Maps.
-Return the distance from the user postal code and university postal codes as well as the time taken to travel using public transport.
-
 Prefer official university pages and Singapore government or MOE-related pages.
 Use only supplied data and verified public facts.
 Do not invent facts.
 If a fact cannot be verified, mark it as unknown.
+Commute estimates are calculated separately by Google Maps and must not be estimated here.
 Return concise, practical advice.
         `,
       },
@@ -451,29 +707,39 @@ Return concise, practical advice.
     },
   });
 
-  const assessment = JSON.parse(response.output_text);
+  const assessment = {
+    ...JSON.parse(response.output_text),
+    google_travel: googleTravel,
+  };
+  const savedRequestPayload = toJsonSafeValue({
+    ...payload,
+    google_travel_input: travelInput,
+  });
+  const savedAssessment = toJsonSafeValue(assessment);
 
   await prisma.compareAiAssessment.upsert({
     where: {
       input_hash: inputHash,
     },
     update: {
-      request_payload: payload,
-      assessment_result: assessment,
+      request_payload: savedRequestPayload,
+      assessment_result: savedAssessment,
     },
     create: {
       user_id: parsedUserId,
       left_course_id: Number(leftCourse.course_id),
       right_course_id: Number(rightCourse.course_id),
       input_hash: inputHash,
-      request_payload: payload,
-      assessment_result: assessment,
+      request_payload: savedRequestPayload,
+      assessment_result: savedAssessment,
     },
   });
 
+  const quota = await consumeAiAssessmentUsage(parsedUserId);
+
   return {
     cached: false,
-    assessment,
+    assessment: savedAssessment,
     quota,
   };
 };

@@ -84,7 +84,7 @@ function getAiAssessmentCacheKey() {
   }
 
   return stableStringify({
-    version: "compare_ai_assessment_v1",
+    version: "compare_ai_assessment_v4_absolute_course_wording",
     userId: CURRENT_USER_ID,
     leftCourseId: getCourseId(compareState.left),
     rightCourseId: getCourseId(compareState.right),
@@ -636,6 +636,10 @@ function renderCompare() {
   const status = document.getElementById("aiAssessmentStatus");
 
   if (status && result && !result.innerHTML.trim()) {
+    if (restoreStoredAiAssessment()) {
+      return;
+    }
+
     status.style.display = "block";
     status.textContent = "Click Generate to create the AI pros and cons assessment.";
   }
@@ -946,15 +950,12 @@ function buildAiAssessmentPreferences() {
     interests: interestState,
     assessment_focus: {
       cost_matters: true,
-      distance_matters: true,
       curriculum_fit_matters: true,
       avoid_unfavoured_interests: true,
       citizenship_based_cost: true,
-      campus_travel_burden: true,
     },
     compare_factors: [
       "citizenship-based total university cost",
-      "distance from user's home region",
       "curriculum fit with wanted interests",
       "risk of unfavoured interests",
       "salary",
@@ -1017,6 +1018,48 @@ function renderAiCourseAssessment(course) {
   `;
 }
 
+function renderTravelRoute(route) {
+  if (!route) return "";
+
+  const hasTravelEstimate =
+    route.status === "OK" && (route.distance_text || route.duration_text);
+  const routeLabel = route.university_code || "University";
+
+  return `
+    <div class="ai-judgement-row">
+      <strong>${routeLabel}</strong><br />
+      ${
+        hasTravelEstimate
+          ? `
+            ${route.duration_text || "Time unavailable"}
+            <span class="muted">by public transport</span><br />
+            <span class="muted">${route.distance_text || "Distance unavailable"}</span>
+          `
+          : `<span class="muted">${route.error || "Travel estimate unavailable."}</span>`
+      }
+    </div>
+  `;
+}
+
+function renderGoogleTravelComparison(travel) {
+  if (!travel) return "";
+
+  return `
+    <div class="ai-summary-box">
+      <strong>Google Maps travel estimate</strong>
+      ${
+        travel.unavailable_reason
+          ? `<p class="muted" style="margin: 8px 0 0;">${travel.unavailable_reason}</p>`
+          : ""
+      }
+      <div class="ai-judgement-list" style="margin-top: 12px;">
+        ${renderTravelRoute(travel.left_course)}
+        ${renderTravelRoute(travel.right_course)}
+      </div>
+    </div>
+  `;
+}
+
 function renderAiAssessmentResult(assessment) {
   const status = document.getElementById("aiAssessmentStatus");
   const result = document.getElementById("aiAssessmentResult");
@@ -1030,6 +1073,8 @@ function renderAiAssessmentResult(assessment) {
       <strong>Summary</strong><br />
       ${assessment.summary}
     </div>
+
+    ${renderGoogleTravelComparison(assessment.google_travel)}
 
     <div class="ai-two-column">
       ${renderAiCourseAssessment(assessment.left_course)}
@@ -1109,10 +1154,6 @@ async function generateAiAssessment(forceRefresh = false) {
   } catch (error) {
     if (requestId !== aiAssessmentRequestId) return;
 
-    if (error.data?.quota) {
-      renderAiAssessmentQuota(error.data.quota);
-    }
-
     const status = document.getElementById("aiAssessmentStatus");
 
     if (status) {
@@ -1157,10 +1198,6 @@ async function initCompare() {
   renderCompare();
 
   await hydrateSelectedCourses();
-
-  if (!restoreStoredAiAssessment()) {
-    clearAiAssessment();
-  }
 }
 
 initCompare();
