@@ -132,6 +132,40 @@ function restoreStoredAiAssessment() {
   return true;
 }
 
+async function restoreCachedAiAssessment() {
+  if (restoreStoredAiAssessment()) {
+    return true;
+  }
+
+  if (!compareState.left?.course_id || !compareState.right?.course_id) {
+    return false;
+  }
+
+  try {
+    const json = await fetchJson("/compare-ai-assessment/cached", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        leftCourseId: getCourseId(compareState.left),
+        rightCourseId: getCourseId(compareState.right),
+      }),
+    });
+
+    const assessment = json.data?.assessment;
+
+    if (!assessment) return false;
+
+    renderAiAssessmentResult(assessment);
+    saveStoredAiAssessment(assessment);
+    return true;
+  } catch (error) {
+    console.warn("Unable to restore cached AI assessment:", error.message);
+    return false;
+  }
+}
+
 function getSelectedInterestMetrics() {
   const selected = getWantedInterestSelections();
 
@@ -636,10 +670,6 @@ function renderCompare() {
   const status = document.getElementById("aiAssessmentStatus");
 
   if (status && result && !result.innerHTML.trim()) {
-    if (restoreStoredAiAssessment()) {
-      return;
-    }
-
     status.style.display = "block";
     status.textContent = "Click Generate to create the AI pros and cons assessment.";
   }
@@ -1198,6 +1228,8 @@ async function initCompare() {
   renderCompare();
 
   await hydrateSelectedCourses();
+
+  await restoreCachedAiAssessment();
 }
 
 initCompare();

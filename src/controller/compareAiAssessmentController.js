@@ -45,3 +45,29 @@ module.exports.getUsage = async function getUsage(req, res) {
     });
   }
 };
+
+module.exports.getCachedAssessment = async function getCachedAssessment(req, res) {
+  try {
+    const assessment = await compareAiAssessmentModel.getCachedCompareAssessment({
+      userId: req.userId,
+      leftCourseId: req.body.leftCourseId,
+      rightCourseId: req.body.rightCourseId,
+    });
+
+    return res.status(200).json({
+      message: assessment
+        ? "Cached AI assessment retrieved successfully"
+        : "No cached AI assessment found",
+      data: {
+        assessment,
+      },
+    });
+  } catch (error) {
+    console.error("Error retrieving cached AI comparison assessment:", error);
+
+    return res.status(500).json({
+      message: "Failed to retrieve cached AI comparison assessment",
+      error: error.message,
+    });
+  }
+};

@@ -744,4 +744,35 @@ Return concise, practical advice.
   };
 };
 
+module.exports.getCachedCompareAssessment = async function getCachedCompareAssessment({
+  userId,
+  leftCourseId,
+  rightCourseId,
+}) {
+  const parsedUserId = Number(userId);
+  const parsedLeftCourseId = Number(leftCourseId);
+  const parsedRightCourseId = Number(rightCourseId);
+
+  if (
+    Number.isNaN(parsedUserId) ||
+    Number.isNaN(parsedLeftCourseId) ||
+    Number.isNaN(parsedRightCourseId)
+  ) {
+    throw new Error("Invalid cached assessment request");
+  }
+
+  const cached = await prisma.compareAiAssessment.findFirst({
+    where: {
+      user_id: parsedUserId,
+      left_course_id: parsedLeftCourseId,
+      right_course_id: parsedRightCourseId,
+    },
+    orderBy: {
+      updated_at: "desc",
+    },
+  });
+
+  return cached?.assessment_result || null;
+};
+
 module.exports.getAiAssessmentUsage = getAiAssessmentUsage;
