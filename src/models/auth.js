@@ -51,7 +51,6 @@ function sanitizeUser(user) {
   return {
     user_id: user.user_id,
     first_name: user.first_name,
-    full_name: user.full_name,
     email: user.email,
     citizenship: user.citizenship,
     postal_code: user.postal_code,
@@ -163,8 +162,11 @@ async function fetchJsonOrThrow(url, options) {
 function normalizeOAuthProfile(provider, profile) {
   const email = normalizeEmail(profile.email || profile.preferred_username || profile.upn);
   const providerId = profile.sub;
-  const fullName = profile.name || email;
-  const firstName = profile.given_name || fullName?.split(" ")[0] || email?.split("@")[0] || "User";
+  const firstName =
+    profile.given_name ||
+    profile.name?.split(" ")[0] ||
+    email?.split("@")[0] ||
+    "User";
 
   if (!providerId || !email) {
     const error = new Error("OAuth profile is missing required identity fields");
@@ -181,7 +183,6 @@ function normalizeOAuthProfile(provider, profile) {
   return {
     providerId,
     email,
-    fullName,
     firstName,
   };
 }
@@ -216,15 +217,13 @@ async function linkOAuthProviderToUser(userId, provider, idColumn, providerId, p
     `
       UPDATE "users"
       SET "${idColumn}" = $1,
-          full_name = COALESCE(full_name, $2),
-          first_name = COALESCE(first_name, $3),
-          last_login_provider = $4,
+          first_name = COALESCE(first_name, $2),
+          last_login_provider = $3,
           updated_at = CURRENT_TIMESTAMP
-      WHERE user_id = $5
+      WHERE user_id = $4
       RETURNING user_id, first_name, full_name, email, citizenship, postal_code
     `,
     providerId,
-    profile.fullName,
     profile.firstName,
     provider,
     userId
@@ -241,7 +240,7 @@ async function createOAuthUser(provider, idColumn, providerId, profile) {
       RETURNING user_id, first_name, full_name, email, citizenship, postal_code
     `,
     profile.firstName,
-    profile.fullName,
+    null,
     profile.email,
     providerId,
     provider
@@ -441,11 +440,12 @@ async function clearFailedLogins(email) {
   `;
 }
 
-async function registerUser({ first_name, full_name, email, password, citizenship, postal_code }) {
+async function registerUser({ first_name, email, password, citizenship, postal_code }) {
   const normalizedEmail = normalizeEmail(email);
+  const firstName = String(first_name || "").trim();
 
-  if (!normalizedEmail || !password) {
-    throw new Error("Email and password are required");
+  if (!firstName || !normalizedEmail || !password) {
+    throw new Error("First name, email and password are required");
   }
 
   if (password.length < 8) {
@@ -466,8 +466,8 @@ async function registerUser({ first_name, full_name, email, password, citizenshi
 
   const user = await prisma.user.create({
     data: {
-      first_name: first_name || null,
-      full_name: full_name || null,
+      first_name: firstName,
+      full_name: null,
       email: normalizedEmail,
       password_hash: passwordHash,
       citizenship: citizenship || null,
@@ -523,7 +523,6 @@ async function getCurrentUser(userId) {
     },
     select: {
       user_id: true,
-      full_name: true,
       first_name: true,
       email: true,
       citizenship: true,

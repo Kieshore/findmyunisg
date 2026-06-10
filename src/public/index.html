@@ -579,8 +579,8 @@
           <h2>Personal details</h2>
           <div class="form-grid">
             <div class="field">
-              <label for="fullName">Name</label>
-              <input id="fullName" class="input" type="text" placeholder="Your name" />
+              <label for="firstName">First name</label>
+              <input id="firstName" class="input" type="text" placeholder="Your first name" />
             </div>
             <div class="field">
               <label for="qualification">Qualification</label>
@@ -710,7 +710,7 @@
     const user = json.data;
     const profile = user.academic_profiles?.[0];
 
-    document.getElementById("fullName").value = user.full_name || "";
+    document.getElementById("firstName").value = user.first_name || "";
     document.getElementById("school").value = profile?.institution_name || "";
     document.getElementById("course").value = profile?.diploma_name || "";
     document.getElementById("gradYear").value = profile?.graduation_year || "";

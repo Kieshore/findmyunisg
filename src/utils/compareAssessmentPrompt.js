@@ -136,7 +136,7 @@ function buildCompareAssessmentPrompt(payload) {
 
   const userContext = {
     user_id: userProfile.user_id ?? payload.userId,
-    full_name: userProfile.full_name || "Unknown",
+    first_name: userProfile.first_name || "Unknown",
     email: userProfile.email || "Unknown",
     citizenship: userProfile.citizenship || "Unknown",
     qualification_type: qualificationType,

@@ -395,7 +395,7 @@ async function getUserProfile(userId) {
     },
     select: {
       user_id: true,
-      full_name: true,
+      first_name: true,
       citizenship: true,
       postal_code: true,
       email: true,

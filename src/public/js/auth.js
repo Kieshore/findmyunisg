@@ -121,8 +121,7 @@ if (registerForm) {
 
     try {
       await postJson("/auth/register", {
-        first_name: document.getElementById("fullName").value,
-        full_name: document.getElementById("fullName").value,
+        first_name: document.getElementById("firstName").value,
         email: document.getElementById("email").value,
         password: document.getElementById("password").value,
         citizenship: document.getElementById("citizenship").value,

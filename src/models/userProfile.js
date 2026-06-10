@@ -14,7 +14,6 @@ module.exports.getUserProfile = async function getUserProfile(userId) {
     select: {
       user_id: true,
       first_name: true,
-      full_name: true,
       postal_code: true,
       citizenship: true,
       email: true,
@@ -230,7 +229,6 @@ module.exports.updateMyProfile = async function updateMyProfile(userId, payload)
     select: {
       user_id: true,
       first_name: true,
-      full_name: true,
       email: true,
       citizenship: true,
       postal_code: true,

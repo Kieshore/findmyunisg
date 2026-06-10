@@ -9,7 +9,7 @@ const state = {
 
 function getAcademicElements() {
   return {
-    fullName: document.getElementById("fullName"),
+    firstName: document.getElementById("firstName"),
     email: document.getElementById("email"),
     school: document.getElementById("school"),
     postalCode: document.getElementById("postal_code"),
@@ -308,8 +308,8 @@ async function loadBasicUserProfile() {
     const user = await getCurrentUser();
     const elements = getAcademicElements();
 
-    if (elements.fullName) {
-      elements.fullName.value = user?.full_name || user?.first_name || "";
+    if (elements.firstName) {
+      elements.firstName.value = user?.first_name || "";
     }
 
     if (elements.email) {
