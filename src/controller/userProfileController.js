@@ -78,3 +78,26 @@ module.exports.saveMyAcademicProfile = async function saveMyAcademicProfile(req,
     });
   }
 };
+
+module.exports.deleteMyAccount = async function deleteMyAccount(req, res) {
+  try {
+    await userProfileModel.deleteMyAccount(req.userId);
+
+    res.clearCookie("auth_token", {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: false,
+    });
+
+    return res.status(200).json({
+      message: "Account deleted successfully",
+    });
+  } catch (error) {
+    console.error("Error deleting account:", error);
+
+    return res.status(400).json({
+      message: error.message || "Failed to delete account",
+      error: error.message,
+    });
+  }
+};

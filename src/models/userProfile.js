@@ -259,3 +259,44 @@ module.exports.saveMyAcademicProfile = async function saveMyAcademicProfile(
     },
   });
 };
+
+module.exports.deleteMyAccount = async function deleteMyAccount(userId) {
+  const parsedUserId = Number(userId);
+
+  if (Number.isNaN(parsedUserId)) {
+    throw new Error("Invalid user ID");
+  }
+
+  const user = await prisma.user.findUnique({
+    where: {
+      user_id: parsedUserId,
+    },
+    select: {
+      user_id: true,
+      email: true,
+    },
+  });
+
+  if (!user) {
+    throw new Error("User not found");
+  }
+
+  await prisma.$transaction(async tx => {
+    await tx.$executeRaw`DELETE FROM "CompareAiAssessment" WHERE "user_id" = ${parsedUserId}`;
+    await tx.$executeRaw`DELETE FROM "ai_assessment_daily_usage" WHERE "user_id" = ${parsedUserId}`;
+    await tx.$executeRaw`DELETE FROM "user_saved_courses" WHERE "user_id" = ${parsedUserId}`;
+    await tx.$executeRaw`DELETE FROM "user_interest_preferences" WHERE "user_id" = ${parsedUserId}`;
+    await tx.$executeRaw`DELETE FROM "user_course_finder_preferences" WHERE "user_id" = ${parsedUserId}`;
+    await tx.$executeRaw`DELETE FROM "user_preferences" WHERE "user_id" = ${parsedUserId}`;
+    await tx.$executeRaw`DELETE FROM "user_academic_profiles" WHERE "user_id" = ${parsedUserId}`;
+    await tx.$executeRaw`DELETE FROM "login_attempt_locks" WHERE "email" = ${user.email}`;
+
+    await tx.user.delete({
+      where: {
+        user_id: parsedUserId,
+      },
+    });
+  });
+
+  return true;
+};

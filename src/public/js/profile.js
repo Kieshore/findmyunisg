@@ -456,6 +456,48 @@ if (input === elements.qualification || input === elements.gradYear) {
   }
 }
 
+async function deleteAccount() {
+  const shouldDelete = window.confirm(
+    "Are you sure you want to delete your account and all its associated data?"
+  );
+
+  if (!shouldDelete) {
+    window.location.hash = "#";
+    return;
+  }
+
+  const deleteButton = document.getElementById("deleteAccountBtn");
+
+  try {
+    if (deleteButton) {
+      deleteButton.disabled = true;
+      deleteButton.textContent = "Deleting...";
+    }
+
+    await fetchJson("/users/me", {
+      method: "DELETE",
+    });
+
+    window.location.href = "/login.html";
+  } catch (error) {
+    console.error("Account delete failed:", error);
+    setAcademicMessage(error.message || "Failed to delete account.", "error");
+
+    if (deleteButton) {
+      deleteButton.disabled = false;
+      deleteButton.textContent = "Delete account";
+    }
+  }
+}
+
+function setupDeleteAccountButton() {
+  const deleteButton = document.getElementById("deleteAccountBtn");
+
+  if (!deleteButton) return;
+
+  deleteButton.addEventListener("click", deleteAccount);
+}
+
 async function loadInterests() {
   try {
     const json = await fetchJson("/interest-groups");
@@ -601,6 +643,7 @@ async function initProfile() {
   state.selectedInterests = getInterestState();
 
   setupAcademicProfileForm();
+  setupDeleteAccountButton();
   setupInterestUi();
 
   await loadBasicUserProfile();
