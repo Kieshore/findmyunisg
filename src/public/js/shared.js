@@ -126,6 +126,52 @@ function setupTutorialNav() {
   navLinks.insertBefore(tutorialButton, navLinks.firstElementChild);
 }
 
+function setupSiteFooter() {
+  if (document.getElementById("siteFooter")) return;
+
+  const footer = document.createElement("footer");
+  footer.id = "siteFooter";
+  footer.className = "site-footer";
+  footer.innerHTML = `
+    <div class="site-footer-inner">
+      <div>
+        <strong>FindMyUniSG</strong>
+        <span>All rights reserved 2026.</span>
+      </div>
+
+      <nav class="footer-links" aria-label="Legal links">
+        <a href="/privacy.html">Privacy Policy</a>
+        <a href="/terms.html">Terms of Use</a>
+      </nav>
+
+      <div class="footer-socials" aria-label="Social links">
+        <a href="#" aria-label="Instagram">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="3" y="3" width="18" height="18" rx="5"></rect>
+            <circle cx="12" cy="12" r="4"></circle>
+            <circle cx="17.5" cy="6.5" r="1"></circle>
+          </svg>
+        </a>
+        <a href="https://www.linkedin.com/in/kieshore-selvaganthan/" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 9h4v11H4z"></path>
+            <path d="M6 4a2 2 0 1 1 0 4a2 2 0 0 1 0-4z"></path>
+            <path d="M10 9h4v1.5c.7-1 1.8-1.7 3.4-1.7c2.5 0 4.1 1.7 4.1 5V20h-4v-5.5c0-1.4-.6-2.2-1.7-2.2c-1.2 0-1.8.8-1.8 2.2V20h-4z"></path>
+          </svg>
+        </a>
+        <a href="mailto:kieshoresel@gmail.com" target="_blank" rel="noopener noreferrer" aria-label="Gmail">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 6h16v12H4z"></path>
+            <path d="M4 7l8 6l8-6"></path>
+          </svg>
+        </a>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(footer);
+}
+
 function setupNavToggle() {
   const navbar = document.querySelector(".navbar");
   const toggle = document.querySelector(".nav-toggle");
@@ -141,6 +187,7 @@ function setupNavToggle() {
 
 setupTutorialNav();
 setupNavToggle();
+setupSiteFooter();
 
 function debounce(fn, delay = 350) {
   let timeoutId;
