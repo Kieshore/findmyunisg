@@ -43,13 +43,13 @@ function renderAiAssessmentQuota(quota = compareState.aiQuota) {
   if (!quotaElement) return;
 
   if (!quota) {
-    quotaElement.textContent = "AI generations left today: --";
+    quotaElement.textContent = "Generations left today: --";
     updateGenerateButtonState();
     return;
   }
 
   compareState.aiQuota = quota;
-  quotaElement.textContent = `${quota.remaining} of ${quota.limit} AI generations left today. Resets ${formatQuotaReset(quota.resetAt)}.`;
+  quotaElement.textContent = `${quota.remaining} of ${quota.limit} Generations left today. Resets ${formatQuotaReset(quota.resetAt)}.`;
 
   updateGenerateButtonState();
 }
@@ -59,7 +59,7 @@ async function hydrateAiAssessmentQuota() {
     const json = await fetchJson("/compare-ai-assessment/usage");
     renderAiAssessmentQuota(json.data?.quota);
   } catch (error) {
-    console.warn("Unable to load AI assessment quota:", error.message);
+    console.warn("Unable to load assessment quota:", error.message);
   }
 }
 
@@ -161,7 +161,7 @@ async function restoreCachedAiAssessment() {
     saveStoredAiAssessment(assessment);
     return true;
   } catch (error) {
-    console.warn("Unable to restore cached AI assessment:", error.message);
+    console.warn("Unable to restore cached assessment:", error.message);
     return false;
   }
 }
@@ -1007,7 +1007,7 @@ function clearAiAssessment() {
   if (status) {
     status.style.display = "block";
     status.textContent = compareState.left && compareState.right
-      ? "Click Generate to create the AI pros and cons assessment."
+      ? "Click Generate to create the pros and cons assessment."
       : "Select two courses to generate an assessment.";
   }
 }
@@ -1158,7 +1158,7 @@ async function generateAiAssessment(forceRefresh = false) {
 
   isGeneratingAssessment = true;
   updateGenerateButtonState();
-  renderAiAssessmentLoading("Generating AI assessment...");
+  renderAiAssessmentLoading("Generating assessment...");
 
   try {
     const preferences = buildAiAssessmentPreferences();
