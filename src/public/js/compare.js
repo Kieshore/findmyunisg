@@ -671,7 +671,7 @@ function renderCompare() {
 
   if (status && result && !result.innerHTML.trim()) {
     status.style.display = "block";
-    status.textContent = "Click Generate to create the AI pros and cons assessment.";
+    status.textContent = "Click Generate to create the pros and cons assessment.";
   }
 }
 
