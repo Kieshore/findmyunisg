@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Course Finder | FindMyUniSG</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/shepherd.js@11.2.0/dist/css/shepherd.css" />
   <link rel="stylesheet" href="/css/styles.css" />
 </head>
 <body>
@@ -24,11 +25,11 @@
       <h1 class="hero-title">Find courses that fit you.</h1>
 
       <div class="grid two">
-        <section class="card">
+        <section id="courseFilterCard" class="card">
           <h2>Course filter</h2>
 
           <div class="form-grid">
-            <div class="field">
+            <div id="boostField" class="field">
   <label id="boostLabel" for="gpaBoost">Academic boost</label>
   <input id="gpaBoost" class="input" type="number" step="0.01" value="0.00" />
 </div>
@@ -38,7 +39,7 @@
               <input id="academicScore" class="input" type="text" readonly />
             </div>
 
-            <div class="field">
+            <div id="acceptanceChanceField" class="field">
   <div class="range-label-row">
     <label for="bandMinPercentage">Minimum acceptance chance</label>
     <span id="bandMinPercentageValue">80%</span>
@@ -95,7 +96,7 @@
           </div>
         </section>
 
-        <section class="card">
+        <section id="priorityCard" class="card">
           <h2>Priority space</h2>
           <p class="muted">Drag options into the numbered rows. Higher rows affect ranking first.</p>
 
@@ -152,6 +153,8 @@
   </button>
 
   <script src="/js/shared.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/shepherd.js@11.2.0/dist/js/shepherd.min.js"></script>
+  <script src="/js/tutorial.js"></script>
   <script src="/js/course-finder.js"></script>
 </body>
 </html>

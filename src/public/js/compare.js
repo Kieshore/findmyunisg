@@ -1230,6 +1230,11 @@ async function initCompare() {
   await hydrateSelectedCourses();
 
   await restoreCachedAiAssessment();
+  window.dispatchEvent(new CustomEvent("findmyunisg:page-ready", {
+    detail: {
+      page: "compare",
+    },
+  }));
 }
 
 initCompare();

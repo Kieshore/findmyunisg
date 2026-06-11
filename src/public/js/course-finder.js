@@ -873,6 +873,12 @@ function updateCompareButton() {
   button.textContent = count >= 2
     ? `Compare ${MAX_COMPARE_SELECTIONS} selected courses`
     : "Select at least 2 courses";
+
+  window.dispatchEvent(new CustomEvent("findmyunisg:compare-selection-change", {
+    detail: {
+      count,
+    },
+  }));
 }
 
 function setupCompareMode() {
@@ -896,10 +902,15 @@ function setupCompareMode() {
     }
 
     updateCompareButton();
+
+    if (compareMode) {
+      window.dispatchEvent(new CustomEvent("findmyunisg:compare-mode-start"));
+    }
   });
 
   goCompareButton.addEventListener("click", () => {
     const selected = Array.from(selectedCompareCourses.values()).slice(0, 2);
+    window.dispatchEvent(new CustomEvent("findmyunisg:compare-navigation"));
     saveCompareCourses(selected);
     window.location.href = "/compare.html";
   });
@@ -1085,10 +1096,20 @@ async function initCourseFinder() {
   renderCourses();
 
   if (isSavedPage && savedCourseIds.size === 0) {
+    window.dispatchEvent(new CustomEvent("findmyunisg:page-ready", {
+      detail: {
+        page: "saved",
+      },
+    }));
     return;
   }
 
   await fetchRankedCourses();
+  window.dispatchEvent(new CustomEvent("findmyunisg:page-ready", {
+    detail: {
+      page: isSavedPage ? "saved" : "course-finder",
+    },
+  }));
 }
 
 initCourseFinder();

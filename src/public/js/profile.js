@@ -520,12 +520,14 @@ function openInterestModal(button) {
 
   document.getElementById("interestSearch").value = "";
   document.getElementById("interestModal").classList.add("active");
+  window.dispatchEvent(new CustomEvent("findmyunisg:interest-modal-open"));
 
   renderInterestChoices();
 }
 
 function closeInterestModal() {
   document.getElementById("interestModal").classList.remove("active");
+  window.dispatchEvent(new CustomEvent("findmyunisg:interest-modal-close"));
 }
 
 function renderInterestChoices() {
@@ -606,6 +608,11 @@ async function initProfile() {
   await loadInterests();
 
   renderTierLists();
+  window.dispatchEvent(new CustomEvent("findmyunisg:page-ready", {
+    detail: {
+      page: "profile",
+    },
+  }));
 }
 
 initProfile();

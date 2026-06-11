@@ -109,6 +109,23 @@ async function logout() {
 
 window.logout = logout;
 
+function setupTutorialNav() {
+  const navLinks = document.querySelector(".nav-links");
+
+  if (!navLinks || document.getElementById("tutorialNavLink")) return;
+
+  const tutorialButton = document.createElement("button");
+  tutorialButton.id = "tutorialNavLink";
+  tutorialButton.className = "nav-link tutorial-nav-link";
+  tutorialButton.type = "button";
+  tutorialButton.innerHTML = `
+    <span class="tutorial-play-icon" aria-hidden="true"></span>
+    <span>Tutorial</span>
+  `;
+
+  navLinks.insertBefore(tutorialButton, navLinks.firstElementChild);
+}
+
 function setupNavToggle() {
   const navbar = document.querySelector(".navbar");
   const toggle = document.querySelector(".nav-toggle");
@@ -122,6 +139,7 @@ function setupNavToggle() {
   });
 }
 
+setupTutorialNav();
 setupNavToggle();
 
 function debounce(fn, delay = 350) {
