@@ -290,6 +290,11 @@ a {
       font-size: 0.92rem;
     }
 
+    .required-marker {
+      color: var(--danger);
+      font-weight: 900;
+    }
+
     .input, .select {
       width: 100%;
       border: 1px solid var(--border);

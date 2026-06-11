@@ -16,23 +16,23 @@
       <form id="registerForm" class="auth-form">
 
         <div class="field">
-          <label for="firstName">First name</label>
+          <label for="firstName">First name <span class="required-marker">*</span></label>
           <input id="firstName" class="input" type="text" required />
         </div>
 
         <div class="field">
-          <label for="email">Email</label>
+          <label for="email">Email <span class="required-marker">*</span></label>
           <input id="email" class="input" type="email" autocomplete="email" required />
         </div>
 
         <div class="field">
-          <label for="password">Password</label>
+          <label for="password">Password <span class="required-marker">*</span></label>
           <input id="password" class="input" type="password" autocomplete="new-password" minlength="8" required />
         </div>
 
         <div class="field">
-          <label for="citizenship">Citizenship</label>
-          <select id="citizenship" class="select">
+          <label for="citizenship">Citizenship <span class="required-marker">*</span></label>
+          <select id="citizenship" class="select" required>
             <option value="">Select citizenship</option>
             <option value="Singapore Citizen">Singapore Citizen</option>
             <option value="Permanent Resident">Permanent Resident</option>

@@ -7,7 +7,7 @@ const COOKIE_OPTIONS = {
   httpOnly: true,
   sameSite: "lax",
   secure: false, // keep false for localhost. Set true only when using HTTPS.
-  maxAge: 24 * 60 * 60 * 1000,
+  maxAge: 60 * 60 * 1000,
 };
 
 const MAX_LOGIN_ATTEMPTS = 5;
@@ -65,7 +65,7 @@ function createToken(user) {
     },
     process.env.JWT_SECRET_KEY,
     {
-      expiresIn: "24h",
+      expiresIn: "1h",
     }
   );
 }
