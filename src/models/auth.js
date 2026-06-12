@@ -6,7 +6,7 @@ const prisma = require("../lib/prisma");
 const COOKIE_OPTIONS = {
   httpOnly: true,
   sameSite: "lax",
-  secure: false, // keep false for localhost. Set true only when using HTTPS.
+  secure: process.env.NODE_ENV === "production", //keep false for localhost
   maxAge: 60 * 60 * 1000,
 };
 

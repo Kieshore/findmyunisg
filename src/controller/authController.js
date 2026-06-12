@@ -52,7 +52,7 @@ module.exports.logout = async function logout(req, res) {
   res.clearCookie("auth_token", {
     httpOnly: true,
     sameSite: "lax",
-    secure: false,
+    secure: authModel.COOKIE_OPTIONS.secure,
   });
 
   return res.status(200).json({

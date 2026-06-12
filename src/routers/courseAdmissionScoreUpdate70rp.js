@@ -1,8 +1,8 @@
 const express = require("express");
 const router = express.Router();
 const admissionsScoreUpdateController = require("../controller/courseAdmissionScoreUpdate70rp");
-const { requireAuth } = require("../middleware/authMiddleware");
+const { requireAuth, requireAdmin } = require("../middleware/authMiddleware");
 
-router.post("/", requireAuth, admissionsScoreUpdateController.updateAdmissionsScoresFromGrades);
+router.post("/", requireAuth, requireAdmin, admissionsScoreUpdateController.updateAdmissionsScoresFromGrades);
 
 module.exports = router;

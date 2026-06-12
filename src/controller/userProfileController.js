@@ -1,4 +1,5 @@
 const userProfileModel = require("../models/userProfile");
+const authModel = require("../models/auth");
 
 module.exports.getUserProfile = async function getUserProfile(req, res) {
   try {
@@ -86,7 +87,7 @@ module.exports.deleteMyAccount = async function deleteMyAccount(req, res) {
     res.clearCookie("auth_token", {
       httpOnly: true,
       sameSite: "lax",
-      secure: false,
+      secure: authModel.COOKIE_OPTIONS.secure,
     });
 
     return res.status(200).json({
