@@ -476,6 +476,72 @@ a {
       display: none !important;
     }
 
+    @media (max-width: 850px) {
+      .shepherd-element.findmyunisg-tour.findmyunisg-tour-mobile {
+        position: fixed !important;
+        inset: auto 10px calc(env(safe-area-inset-bottom, 0px) + 10px) 10px !important;
+        width: auto !important;
+        max-width: none;
+        max-height: 44vh;
+        transform: none !important;
+        z-index: 10000;
+      }
+
+      .findmyunisg-tour-mobile .shepherd-content {
+        display: flex;
+        flex-direction: column;
+        max-height: 44vh;
+        overflow: hidden;
+        border-radius: 16px;
+      }
+
+      .findmyunisg-tour-mobile .shepherd-arrow {
+        display: none;
+      }
+
+      .findmyunisg-tour-mobile .shepherd-header {
+        padding: 11px 13px 6px;
+      }
+
+      .findmyunisg-tour-mobile .shepherd-title {
+        font-size: 0.95rem;
+      }
+
+      .findmyunisg-tour-mobile .shepherd-text {
+        padding: 9px 13px;
+        overflow-y: auto;
+        font-size: 0.9rem;
+        line-height: 1.4;
+      }
+
+      .findmyunisg-tour-mobile .shepherd-text p {
+        margin: 0 0 8px;
+      }
+
+      .findmyunisg-tour-mobile .shepherd-footer {
+        padding: 0 13px 12px;
+        flex-wrap: wrap;
+      }
+
+      .findmyunisg-tour-mobile .shepherd-button {
+        min-height: 40px;
+        padding: 8px 13px;
+      }
+
+      body.tutorial-go-compare-step .shepherd-element.findmyunisg-tour.findmyunisg-tour-mobile {
+        inset: auto 14px calc(env(safe-area-inset-bottom, 0px) + 76px) 14px !important;
+        max-height: 34vh;
+      }
+
+      body.tutorial-go-compare-step .findmyunisg-tour-mobile .shepherd-content {
+        max-height: 34vh;
+      }
+
+      .shepherd-modal-overlay-container.shepherd-modal-is-visible path {
+        fill: rgba(22, 32, 42, 0.24);
+      }
+    }
+
          .plus-btn-tier {
       position: absolute;
       top: 50%;

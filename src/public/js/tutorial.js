@@ -128,13 +128,16 @@
       keyboardNavigation: false,
       exitOnEsc: false,
       defaultStepOptions: {
-        classes: "findmyunisg-tour",
+        classes: isMobileLayout()
+          ? "findmyunisg-tour findmyunisg-tour-mobile"
+          : "findmyunisg-tour",
+        canClickTarget: true,
         cancelIcon: {
           enabled: isCompleted(),
         },
         scrollTo: {
           behavior: "smooth",
-          block: "center",
+          block: isMobileLayout() ? "nearest" : "center",
         },
       },
     });
@@ -386,18 +389,24 @@
       ],
       when: {
         show() {
+          document.body.classList.add("tutorial-go-compare-step");
           waitForTourEvent("findmyunisg:compare-navigation", () => {
             setActiveStage("compare");
           });
+        },
+        hide() {
+          document.body.classList.remove("tutorial-go-compare-step");
         },
       },
     });
 
     tour.on("complete", () => {
       activeTour = null;
+      document.body.classList.remove("tutorial-go-compare-step");
     });
     tour.on("cancel", () => {
       activeTour = null;
+      document.body.classList.remove("tutorial-go-compare-step");
       setCompleted();
     });
 
