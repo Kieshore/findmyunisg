@@ -1090,11 +1090,17 @@ function renderGoogleTravelComparison(travel) {
   `;
 }
 
+function getPostalCodeWarnings(warnings = []) {
+  return warnings.filter(item => /postal\s*code/i.test(String(item || "")));
+}
+
 function renderAiAssessmentResult(assessment) {
   const status = document.getElementById("aiAssessmentStatus");
   const result = document.getElementById("aiAssessmentResult");
 
   if (!status || !result) return;
+
+  const postalCodeWarnings = getPostalCodeWarnings(assessment.missing_data_warnings);
 
   status.style.display = "none";
 
@@ -1130,12 +1136,12 @@ function renderAiAssessmentResult(assessment) {
     </div>
 
     ${
-      assessment.missing_data_warnings?.length
+      postalCodeWarnings.length
         ? `
           <div class="ai-warning">
-            <strong>Missing data warnings</strong>
+            <strong>Postal code warning</strong>
             <ul>
-              ${assessment.missing_data_warnings.map(item => `<li>${item}</li>`).join("")}
+              ${postalCodeWarnings.map(item => `<li>${item}</li>`).join("")}
             </ul>
           </div>
         `
