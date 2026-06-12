@@ -635,6 +635,10 @@ a {
       gap: 10px;
     }
 
+    .priority-instruction-mobile {
+      display: none;
+    }
+
     .priority-mobile-row {
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(145px, 0.8fr);
@@ -1417,6 +1421,14 @@ a {
 @media (max-width: 760px) {
   .priority-mobile-controls {
     display: grid;
+  }
+
+  .priority-instruction-desktop {
+    display: none;
+  }
+
+  .priority-instruction-mobile {
+    display: block;
   }
 
   .priority-options-title,
