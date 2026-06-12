@@ -4,6 +4,8 @@
   const UNAVAILABLE = "tutorial_unavailable";
   let activeTour = null;
   let lastReadyPage = null;
+  let mobileHighlightedElement = null;
+  let mobileFocusCleanupTimer = null;
 
   function pageName() {
     const path = window.location.pathname;
@@ -44,6 +46,57 @@
 
   function isMobileLayout() {
     return window.matchMedia("(max-width: 850px)").matches;
+  }
+
+  function isEditableElement(element) {
+    return Boolean(element?.closest?.("input, textarea, select"));
+  }
+
+  function clearMobileHighlight() {
+    if (mobileHighlightedElement) {
+      mobileHighlightedElement.classList.remove("tutorial-mobile-highlight");
+      mobileHighlightedElement = null;
+    }
+
+    document.body.classList.remove("tutorial-mobile-active");
+  }
+
+  function getStepTargetElement(step) {
+    const target = step?.options?.attachTo?.element;
+
+    if (!target) return null;
+    if (typeof target === "string") return document.querySelector(target);
+    if (target instanceof Element) return target;
+    return null;
+  }
+
+  function updateMobileHighlight(tour) {
+    if (!isMobileLayout()) return;
+
+    clearMobileHighlight();
+
+    const target = getStepTargetElement(tour.getCurrentStep?.());
+
+    if (!target) return;
+
+    mobileHighlightedElement = target;
+    mobileHighlightedElement.classList.add("tutorial-mobile-highlight");
+    document.body.classList.add("tutorial-mobile-active");
+  }
+
+  function setMobileTypingMode(active) {
+    if (!isMobileLayout() || !activeTour) return;
+
+    window.clearTimeout(mobileFocusCleanupTimer);
+
+    if (active) {
+      document.body.classList.add("tutorial-mobile-typing");
+      return;
+    }
+
+    mobileFocusCleanupTimer = window.setTimeout(() => {
+      document.body.classList.remove("tutorial-mobile-typing");
+    }, 180);
   }
 
   function tutorialMessage(message) {
@@ -123,7 +176,7 @@
       return null;
     }
 
-    return new Shepherd.Tour({
+    const tour = new Shepherd.Tour({
       useModalOverlay: !isMobileLayout(),
       keyboardNavigation: false,
       exitOnEsc: false,
@@ -132,6 +185,7 @@
           ? "findmyunisg-tour findmyunisg-tour-mobile"
           : "findmyunisg-tour",
         canClickTarget: true,
+        focusFirstElement: !isMobileLayout(),
         cancelIcon: {
           enabled: isCompleted(),
         },
@@ -141,6 +195,17 @@
         },
       },
     });
+
+    if (isMobileLayout()) {
+      tour.on("show", () => {
+        window.requestAnimationFrame(() => updateMobileHighlight(tour));
+      });
+      tour.on("hide", clearMobileHighlight);
+      tour.on("cancel", clearMobileHighlight);
+      tour.on("complete", clearMobileHighlight);
+    }
+
+    return tour;
   }
 
   function isInterestTierStepActive() {
@@ -544,6 +609,18 @@
 
   window.addEventListener("findmyunisg:interest-modal-close", () => {
     setInterestModalOverlayHidden(false);
+  });
+
+  document.addEventListener("focusin", event => {
+    if (isEditableElement(event.target)) {
+      setMobileTypingMode(true);
+    }
+  });
+
+  document.addEventListener("focusout", event => {
+    if (isEditableElement(event.target)) {
+      setMobileTypingMode(false);
+    }
   });
 
   setupTutorialButton();
