@@ -124,7 +124,7 @@
     }
 
     return new Shepherd.Tour({
-      useModalOverlay: true,
+      useModalOverlay: !isMobileLayout(),
       keyboardNavigation: false,
       exitOnEsc: false,
       defaultStepOptions: {
