@@ -63,6 +63,13 @@
       color: var(--primary-dark);
     }
 
+    .brand-logo {
+      display: block;
+      width: 178px;
+      max-width: 45vw;
+      height: auto;
+    }
+
     .nav-links {
       display: flex;
       gap: 10px;
@@ -535,7 +542,7 @@
 <body>
   <main class="app-shell">
     <nav class="navbar">
-      <div class="brand">FindMyUniSG</div>
+      <div class="brand"><img class="brand-logo" src="/img/findmyunisg-logo.png" alt="FindMyUniSG" /></div>
       <div class="nav-links">
         <button class="nav-link active" data-page="courseFinderPage">Course Finder</button>
         <button class="nav-link" data-page="profilePage">Profile</button>

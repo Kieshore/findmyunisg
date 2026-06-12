@@ -1498,12 +1498,15 @@ a {
 
 .auth-brand {
   display: inline-flex;
-  padding: 8px 13px;
-  border-radius: 999px;
-  background: var(--surface-soft);
-  color: var(--primary-dark);
-  font-weight: 900;
+  align-items: center;
   margin-bottom: 18px;
+}
+
+.auth-brand-logo {
+  display: block;
+  width: 188px;
+  max-width: 64vw;
+  height: auto;
 }
 
 .auth-title {
@@ -1620,6 +1623,13 @@ a {
   background: transparent;
   font: inherit;
   cursor: pointer;
+}
+
+.brand-logo {
+  display: block;
+  width: 178px;
+  max-width: 45vw;
+  height: auto;
 }
 
 .section-header {
