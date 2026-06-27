@@ -18,7 +18,7 @@ const DEFAULT_FINDER_STATE = {
   gpaBoost: "0",
   bandMinPercentage: "80",
   selectedUniversities: [],
-  onlyWanted: false,
+  onlyWanted: true,
   excludeUnwanted: false,
   courseKeyword: "",
   priority: {
