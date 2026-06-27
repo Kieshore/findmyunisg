@@ -1768,6 +1768,19 @@ a {
   color: var(--danger);
 }
 
+.profile-action-row {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.profile-action-row .remove-course-btn,
+.profile-action-row .primary-btn {
+  margin-top: 0;
+}
+
 .nav-button {
   border: 0;
   background: transparent;
