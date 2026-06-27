@@ -408,6 +408,7 @@ async function saveAcademicProfile() {
     }
 
     setAcademicMessage("Profile changes saved.", "success");
+    window.dispatchEvent(new CustomEvent("findmyunisg:profile-saved"));
   } catch (error) {
     console.error("Profile save failed:", error);
     setAcademicMessage(error.message || "Failed to save profile changes.", "error");

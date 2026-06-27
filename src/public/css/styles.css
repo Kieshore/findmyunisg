@@ -459,6 +459,10 @@ a {
       background: #265f91;
     }
 
+    body:not(.tutorial-exit-allowed) .findmyunisg-tour .shepherd-cancel-icon {
+      display: none;
+    }
+
     .tutorial-step-message {
       min-height: 1.2em;
       margin: 10px 0 0;

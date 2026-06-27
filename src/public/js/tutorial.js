@@ -2,6 +2,7 @@
   const ACTIVE_STAGE = "tutorial_active_stage";
   const COMPLETED = "tutorial_completed";
   const UNAVAILABLE = "tutorial_unavailable";
+  const PROFILE_EXIT_ALLOWED = "tutorial_profile_exit_allowed";
   let activeTour = null;
   let lastReadyPage = null;
   let mobileHighlightedElement = null;
@@ -30,6 +31,7 @@
   function setCompleted() {
     localStorage.setItem(storageKey(COMPLETED), "true");
     localStorage.removeItem(storageKey(ACTIVE_STAGE));
+    updateTutorialExitVisibility();
   }
 
   function getActiveStage() {
@@ -42,6 +44,22 @@
 
   function setActiveStage(stage) {
     localStorage.setItem(storageKey(ACTIVE_STAGE), stage);
+  }
+
+  function canExitTutorial() {
+    return (
+      isCompleted() ||
+      localStorage.getItem(storageKey(PROFILE_EXIT_ALLOWED)) === "true"
+    );
+  }
+
+  function allowProfileTutorialExit() {
+    localStorage.setItem(storageKey(PROFILE_EXIT_ALLOWED), "true");
+    updateTutorialExitVisibility();
+  }
+
+  function updateTutorialExitVisibility() {
+    document.body.classList.toggle("tutorial-exit-allowed", canExitTutorial());
   }
 
   function isMobileLayout() {
@@ -139,6 +157,7 @@
       }
 
       tutorialMessage("");
+      allowProfileTutorialExit();
       return true;
     } catch (error) {
       tutorialMessage(error.message || "Complete the required profile fields first.");
@@ -187,7 +206,7 @@
         canClickTarget: true,
         focusFirstElement: !isMobileLayout(),
         cancelIcon: {
-          enabled: isCompleted(),
+          enabled: true,
         },
         scrollTo: {
           behavior: "smooth",
@@ -198,11 +217,16 @@
 
     if (isMobileLayout()) {
       tour.on("show", () => {
+        updateTutorialExitVisibility();
         window.requestAnimationFrame(() => updateMobileHighlight(tour));
       });
       tour.on("hide", clearMobileHighlight);
       tour.on("cancel", clearMobileHighlight);
       tour.on("complete", clearMobileHighlight);
+    }
+
+    if (!isMobileLayout()) {
+      tour.on("show", updateTutorialExitVisibility);
     }
 
     return tour;
@@ -610,6 +634,8 @@
   window.addEventListener("findmyunisg:interest-modal-close", () => {
     setInterestModalOverlayHidden(false);
   });
+
+  window.addEventListener("findmyunisg:profile-saved", allowProfileTutorialExit);
 
   document.addEventListener("focusin", event => {
     if (isEditableElement(event.target)) {
