@@ -670,6 +670,21 @@ a {
 
     .interest-choice:hover { border-color: var(--primary); transform: translateY(-1px); background: var(--surface-soft); }
 
+    .interest-choice.selected {
+      border-color: var(--primary-dark);
+      background: var(--surface-blue);
+      color: var(--primary-dark);
+      font-weight: 800;
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
     .priority-board {
       display: grid;
       gap: 12px;

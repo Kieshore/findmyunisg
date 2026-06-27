@@ -4,6 +4,7 @@ let originalBasicPayload = null;
 
 const state = {
   modalTarget: null,
+  modalSelectedInterests: new Set(),
   selectedInterests: structuredClone(DEFAULT_INTEREST_STATE),
 };
 
@@ -556,11 +557,13 @@ function openInterestModal(button) {
     kind: list.dataset.kind,
     tier: row.dataset.tier,
   };
+  state.modalSelectedInterests.clear();
 
   document.getElementById("modalContext").textContent =
     `${state.modalTarget.kind === "wanted" ? "Favoured" : "Unfavoured"} · ${state.modalTarget.tier}`;
 
   document.getElementById("interestSearch").value = "";
+  updateInterestSelectionCount();
   document.getElementById("interestModal").classList.add("active");
   window.dispatchEvent(new CustomEvent("findmyunisg:interest-modal-open"));
 
@@ -568,8 +571,51 @@ function openInterestModal(button) {
 }
 
 function closeInterestModal() {
+  state.modalSelectedInterests.clear();
+  updateInterestSelectionCount();
   document.getElementById("interestModal").classList.remove("active");
   window.dispatchEvent(new CustomEvent("findmyunisg:interest-modal-close"));
+}
+
+function getUsedInterests() {
+  return Object.values(state.selectedInterests.wanted)
+    .flat()
+    .concat(Object.values(state.selectedInterests.unwanted).flat());
+}
+
+function updateInterestSelectionCount() {
+  const count = state.modalSelectedInterests.size;
+  const countElement = document.getElementById("interestSelectionCount");
+  const addButton = document.getElementById("addSelectedInterests");
+
+  if (countElement) {
+    countElement.textContent = count
+      ? `${count} interest${count === 1 ? "" : "s"} selected`
+      : "No interests selected";
+  }
+
+  if (addButton) {
+    addButton.disabled = count === 0;
+  }
+}
+
+function addSelectedInterestsToTier() {
+  if (!state.modalTarget || state.modalSelectedInterests.size === 0) return;
+
+  const { kind, tier } = state.modalTarget;
+  const current = state.selectedInterests[kind][tier];
+  const usedInterests = new Set(getUsedInterests());
+
+  state.modalSelectedInterests.forEach(item => {
+    if (!usedInterests.has(item) && !current.includes(item)) {
+      current.push(item);
+      usedInterests.add(item);
+    }
+  });
+
+  persistInterests();
+  closeInterestModal();
+  renderTierLists();
 }
 
 function renderInterestChoices() {
@@ -588,34 +634,29 @@ function renderInterestChoices() {
   matches.forEach(item => {
     const btn = document.createElement("button");
     btn.className = "interest-choice";
+    btn.type = "button";
     btn.textContent = item;
 
-    const alreadyUsed = Object.values(state.selectedInterests.wanted)
-      .flat()
-      .concat(Object.values(state.selectedInterests.unwanted).flat())
-      .includes(item);
+    const alreadyUsed = getUsedInterests().includes(item);
+    const selectedInModal = state.modalSelectedInterests.has(item);
 
     if (alreadyUsed) {
       btn.classList.add("disabled-choice");
       btn.disabled = true;
     }
 
+    btn.classList.toggle("selected", selectedInModal);
+    btn.setAttribute("aria-pressed", selectedInModal ? "true" : "false");
+
     btn.addEventListener("click", () => {
-      const { kind, tier } = state.modalTarget;
-      const current = state.selectedInterests[kind][tier];
-
-      const isAlreadyUsed = Object.values(state.selectedInterests.wanted)
-        .flat()
-        .concat(Object.values(state.selectedInterests.unwanted).flat())
-        .includes(item);
-
-      if (!isAlreadyUsed && !current.includes(item)) {
-        current.push(item);
+      if (state.modalSelectedInterests.has(item)) {
+        state.modalSelectedInterests.delete(item);
+      } else {
+        state.modalSelectedInterests.add(item);
       }
 
-      persistInterests();
-      closeInterestModal();
-      renderTierLists();
+      updateInterestSelectionCount();
+      renderInterestChoices();
     });
 
     results.appendChild(btn);
@@ -628,6 +669,7 @@ function setupInterestUi() {
   });
 
   document.getElementById("closeModal").addEventListener("click", closeInterestModal);
+  document.getElementById("addSelectedInterests").addEventListener("click", addSelectedInterestsToTier);
 
   document.getElementById("interestModal").addEventListener("click", event => {
     if (event.target.id === "interestModal") closeInterestModal();
