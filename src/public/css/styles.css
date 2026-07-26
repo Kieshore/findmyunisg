@@ -290,6 +290,17 @@ a {
       font-size: 0.92rem;
     }
 
+    .a-level-grade-fields {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      padding: 14px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface-soft);
+    }
+
     .required-marker {
       color: var(--danger);
       font-weight: 900;
@@ -1017,6 +1028,7 @@ a {
 
     @media (max-width: 900px) {
       .grid.two, .tier-columns, .course-main, .checkbox-row { grid-template-columns: 1fr; }
+      .a-level-grade-fields { grid-template-columns: 1fr; }
       .course-card { grid-template-columns: 46px 1fr 34px; }
       .score-box { grid-column: 2; text-align: left; }
       .bookmark-btn { grid-column: 3; grid-row: 1; }

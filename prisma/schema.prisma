@@ -42,6 +42,14 @@ model UserAcademicProfile {
   diploma_name        String?
   institution_name    String?
   graduation_year     Int?
+  h1_general_paper_grade String?
+  h1_project_work_grade  String?
+  h1_content_grade       String?
+  h1_mother_tongue_grade String?
+  h2_subject_1_grade     String?
+  h2_subject_2_grade     String?
+  h2_subject_3_grade     String?
+  h2_subject_4_grade     String?
   english_grade       String?
   math_grade          String?
   computing_grade     String?

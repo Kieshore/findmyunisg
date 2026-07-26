@@ -1,4 +1,25 @@
 const prisma = require("../lib/prisma");
+const { calculateAlevelScoresFromGrades } = require("../utils/aLevelScoreUtils");
+
+let academicGradeColumnsReady = false;
+
+async function ensureAcademicGradeColumns() {
+  if (academicGradeColumnsReady) return;
+
+  await prisma.$executeRaw`
+    ALTER TABLE "user_academic_profiles"
+    ADD COLUMN IF NOT EXISTS "h1_general_paper_grade" TEXT,
+    ADD COLUMN IF NOT EXISTS "h1_project_work_grade" TEXT,
+    ADD COLUMN IF NOT EXISTS "h1_content_grade" TEXT,
+    ADD COLUMN IF NOT EXISTS "h1_mother_tongue_grade" TEXT,
+    ADD COLUMN IF NOT EXISTS "h2_subject_1_grade" TEXT,
+    ADD COLUMN IF NOT EXISTS "h2_subject_2_grade" TEXT,
+    ADD COLUMN IF NOT EXISTS "h2_subject_3_grade" TEXT,
+    ADD COLUMN IF NOT EXISTS "h2_subject_4_grade" TEXT
+  `;
+
+  academicGradeColumnsReady = true;
+}
 
 module.exports.getUserProfile = async function getUserProfile(userId) {
   const parsedUserId = Number(userId);
@@ -98,6 +119,24 @@ function toNullableNumber(value, label) {
   return parsed;
 }
 
+function normalizeGrade(value, label, required = false) {
+  const grade = String(value || "").trim().toUpperCase();
+
+  if (!grade) {
+    if (required) {
+      throw new Error(`${label} grade is required`);
+    }
+
+    return null;
+  }
+
+  if (!["A", "B", "C", "D", "E", "S", "U"].includes(grade)) {
+    throw new Error(`${label} grade must be A, B, C, D, E, S, or U`);
+  }
+
+  return grade;
+}
+
 function validateAcademicProfile(payload) {
   const qualificationType = normalizeQualification(payload.qualification_type);
 
@@ -128,15 +167,11 @@ function validateAcademicProfile(payload) {
     throw new Error("Graduation year looks invalid");
   }
 
-  if (academicScore === null) {
-    throw new Error(
-      qualificationType === "Diploma"
-        ? "GPA is required for Diploma"
-        : "A Level score is required"
-    );
-  }
-
   if (qualificationType === "Diploma") {
+    if (academicScore === null) {
+      throw new Error("GPA is required for Diploma");
+    }
+
     if (academicScore < 0 || academicScore > 4) {
       throw new Error("GPA must be between 0 and 4");
     }
@@ -150,18 +185,48 @@ function validateAcademicProfile(payload) {
       projected_gpa: academicScore,
       rank_points: null,
       uas_70: null,
+      h1_general_paper_grade: null,
+      h1_project_work_grade: null,
+      h1_content_grade: null,
+      h1_mother_tongue_grade: null,
+      h2_subject_1_grade: null,
+      h2_subject_2_grade: null,
+      h2_subject_3_grade: null,
+      h2_subject_4_grade: null,
     };
   }
 
   if (qualificationType === "A Level") {
-  const isOldRpSystem = graduationYear <= 2024;
+    const isOldRpSystem = graduationYear <= 2024;
+    const gradePayload = {
+      h1_general_paper_grade: normalizeGrade(
+        payload.h1_general_paper_grade,
+        "General Paper",
+        true
+      ),
+      h1_project_work_grade: normalizeGrade(
+        payload.h1_project_work_grade,
+        "Project Work",
+        isOldRpSystem
+      ),
+      h1_content_grade: normalizeGrade(payload.h1_content_grade, "H1 content subject"),
+      h1_mother_tongue_grade: normalizeGrade(
+        payload.h1_mother_tongue_grade,
+        "Mother Tongue"
+      ),
+      h2_subject_1_grade: normalizeGrade(payload.h2_subject_1_grade, "H2 subject 1", true),
+      h2_subject_2_grade: normalizeGrade(payload.h2_subject_2_grade, "H2 subject 2", true),
+      h2_subject_3_grade: normalizeGrade(payload.h2_subject_3_grade, "H2 subject 3", true),
+      h2_subject_4_grade: normalizeGrade(payload.h2_subject_4_grade, "H2 subject 4"),
+    };
+    const calculated = calculateAlevelScoresFromGrades({
+      graduation_year: graduationYear,
+      ...gradePayload,
+    });
 
-  if (isOldRpSystem) {
-    if (academicScore < 0 || academicScore > 90) {
-      throw new Error("RP must be between 0 and 90 for A Level students graduating in 2024 or earlier");
+    if (calculated.rp90 === null || calculated.uas70 === null) {
+      throw new Error("Please enter enough A Level grades to calculate your RP and UAS");
     }
-
-    const uas70 = Number(((academicScore / 90) * 70).toFixed(2));
 
     return {
       qualification_type: qualificationType,
@@ -170,28 +235,11 @@ function validateAcademicProfile(payload) {
       graduation_year: graduationYear,
       current_gpa: null,
       projected_gpa: null,
-      rank_points: academicScore,
-      uas_70: uas70,
+      rank_points: calculated.rp90,
+      uas_70: calculated.uas70,
+      ...gradePayload,
     };
   }
-
-  if (academicScore < 0 || academicScore > 70) {
-    throw new Error("UAS 70 must be between 0 and 70 for A Level students graduating in 2025 or later");
-  }
-
-  const derivedRp90 = Number(((academicScore / 70) * 90).toFixed(2));
-
-  return {
-    qualification_type: qualificationType,
-    institution_name: school,
-    diploma_name: null,
-    graduation_year: graduationYear,
-    current_gpa: null,
-    projected_gpa: null,
-    rank_points: derivedRp90,
-    uas_70: academicScore,
-  };
-}
 
   throw new Error("Invalid qualification");
 }
@@ -203,11 +251,38 @@ module.exports.getMyAcademicProfile = async function getMyAcademicProfile(userId
     throw new Error("Invalid user ID");
   }
 
-  return prisma.userAcademicProfile.findUnique({
-    where: {
-      user_id: parsedUserId,
-    },
-  });
+  await ensureAcademicGradeColumns();
+
+  const rows = await prisma.$queryRaw`
+    SELECT
+      academic_profile_id,
+      user_id,
+      qualification_type,
+      current_gpa,
+      projected_gpa,
+      rank_points,
+      uas_70,
+      diploma_name,
+      institution_name,
+      graduation_year,
+      h1_general_paper_grade,
+      h1_project_work_grade,
+      h1_content_grade,
+      h1_mother_tongue_grade,
+      h2_subject_1_grade,
+      h2_subject_2_grade,
+      h2_subject_3_grade,
+      h2_subject_4_grade,
+      english_grade,
+      math_grade,
+      computing_grade,
+      created_at
+    FROM "user_academic_profiles"
+    WHERE "user_id" = ${parsedUserId}
+    LIMIT 1
+  `;
+
+  return rows[0] || null;
 };
 
 module.exports.updateMyProfile = async function updateMyProfile(userId, payload) {
@@ -248,16 +323,68 @@ module.exports.saveMyAcademicProfile = async function saveMyAcademicProfile(
 
   const data = validateAcademicProfile(payload);
 
-  return prisma.userAcademicProfile.upsert({
-    where: {
-      user_id: parsedUserId,
-    },
-    update: data,
-    create: {
-      user_id: parsedUserId,
-      ...data,
-    },
-  });
+  await ensureAcademicGradeColumns();
+
+  const rows = await prisma.$queryRaw`
+    INSERT INTO "user_academic_profiles" (
+      "user_id",
+      "qualification_type",
+      "current_gpa",
+      "projected_gpa",
+      "rank_points",
+      "uas_70",
+      "diploma_name",
+      "institution_name",
+      "graduation_year",
+      "h1_general_paper_grade",
+      "h1_project_work_grade",
+      "h1_content_grade",
+      "h1_mother_tongue_grade",
+      "h2_subject_1_grade",
+      "h2_subject_2_grade",
+      "h2_subject_3_grade",
+      "h2_subject_4_grade"
+    )
+    VALUES (
+      ${parsedUserId},
+      ${data.qualification_type},
+      ${data.current_gpa},
+      ${data.projected_gpa},
+      ${data.rank_points},
+      ${data.uas_70},
+      ${data.diploma_name},
+      ${data.institution_name},
+      ${data.graduation_year},
+      ${data.h1_general_paper_grade},
+      ${data.h1_project_work_grade},
+      ${data.h1_content_grade},
+      ${data.h1_mother_tongue_grade},
+      ${data.h2_subject_1_grade},
+      ${data.h2_subject_2_grade},
+      ${data.h2_subject_3_grade},
+      ${data.h2_subject_4_grade}
+    )
+    ON CONFLICT ("user_id") DO UPDATE SET
+      "qualification_type" = EXCLUDED."qualification_type",
+      "current_gpa" = EXCLUDED."current_gpa",
+      "projected_gpa" = EXCLUDED."projected_gpa",
+      "rank_points" = EXCLUDED."rank_points",
+      "uas_70" = EXCLUDED."uas_70",
+      "diploma_name" = EXCLUDED."diploma_name",
+      "institution_name" = EXCLUDED."institution_name",
+      "graduation_year" = EXCLUDED."graduation_year",
+      "h1_general_paper_grade" = EXCLUDED."h1_general_paper_grade",
+      "h1_project_work_grade" = EXCLUDED."h1_project_work_grade",
+      "h1_content_grade" = EXCLUDED."h1_content_grade",
+      "h1_mother_tongue_grade" = EXCLUDED."h1_mother_tongue_grade",
+      "h2_subject_1_grade" = EXCLUDED."h2_subject_1_grade",
+      "h2_subject_2_grade" = EXCLUDED."h2_subject_2_grade",
+      "h2_subject_3_grade" = EXCLUDED."h2_subject_3_grade",
+      "h2_subject_4_grade" = EXCLUDED."h2_subject_4_grade"
+    RETURNING *
+  `;
+
+  return rows[0];
 };
 
 module.exports.deleteMyAccount = async function deleteMyAccount(userId) {

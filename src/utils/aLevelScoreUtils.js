@@ -49,6 +49,137 @@ const H1_CONTENT_POINTS_70 = {
   U: 0,
 };
 
+const VALID_GRADES = Object.keys(H1_POINTS_90);
+
+function normalizeGrade(value) {
+  const grade = String(value || "").trim().toUpperCase();
+  return VALID_GRADES.includes(grade) ? grade : null;
+}
+
+function getH1Points(grade) {
+  const normalized = normalizeGrade(grade);
+  return normalized === null ? null : H1_POINTS_90[normalized];
+}
+
+function getH2Points(grade) {
+  const normalized = normalizeGrade(grade);
+  return normalized === null ? null : H2_POINTS_90[normalized];
+}
+
+function round2(value) {
+  return Number(value.toFixed(2));
+}
+
+function bestOptionalContentPoint(profile, usedH2Indexes = []) {
+  const h2Grades = [
+    profile.h2_subject_1_grade,
+    profile.h2_subject_2_grade,
+    profile.h2_subject_3_grade,
+    profile.h2_subject_4_grade,
+  ];
+
+  const unusedH2Points = h2Grades
+    .map((grade, index) => {
+      if (usedH2Indexes.includes(index)) return null;
+      const points = getH2Points(grade);
+      return points === null ? null : points / 2;
+    })
+    .filter(point => point !== null);
+
+  const h1ContentPoint = getH1Points(profile.h1_content_grade);
+  const optionalPoints = [
+    ...unusedH2Points,
+    ...(h1ContentPoint === null ? [] : [h1ContentPoint]),
+  ];
+
+  return optionalPoints.length ? Math.max(...optionalPoints) : null;
+}
+
+function calculateAlevelScoresFromGrades(profile) {
+  const gpPoint = getH1Points(profile.h1_general_paper_grade);
+  const pwPoint = getH1Points(profile.h1_project_work_grade);
+  const mtPoint = getH1Points(profile.h1_mother_tongue_grade);
+  const h2Points = [
+    profile.h2_subject_1_grade,
+    profile.h2_subject_2_grade,
+    profile.h2_subject_3_grade,
+    profile.h2_subject_4_grade,
+  ]
+    .map((grade, index) => ({
+      index,
+      points: getH2Points(grade),
+    }))
+    .filter(item => item.points !== null)
+    .sort((a, b) => b.points - a.points);
+
+  if (gpPoint === null || h2Points.length < 3) {
+    return {
+      rp90: null,
+      legacy90: null,
+      uas70: null,
+      scoreMode: null,
+    };
+  }
+
+  const bestThreeH2 = h2Points.slice(0, 3);
+  const bestThreeH2Total = bestThreeH2.reduce((sum, item) => sum + item.points, 0);
+  const usedH2Indexes = bestThreeH2.map(item => item.index);
+  const optionalContentPoint = bestOptionalContentPoint(profile, usedH2Indexes);
+  const graduationYear = toNumber(profile.graduation_year);
+  const isOldRpSystem = graduationYear !== null && graduationYear <= 2024;
+
+  if (isOldRpSystem) {
+    if (pwPoint === null) {
+      return {
+        rp90: null,
+        legacy90: null,
+        uas70: null,
+        scoreMode: null,
+      };
+    }
+
+    const base90 = bestThreeH2Total + gpPoint + pwPoint + (optionalContentPoint ?? 0);
+    const withMotherTongue =
+      mtPoint === null ? base90 : round2(((base90 + mtPoint) / 100) * 90);
+    const rp90 = round2(Math.max(base90, withMotherTongue));
+
+    return {
+      rp90,
+      legacy90: rp90,
+      uas70: convertLegacy90ToUas70(rp90),
+      scoreMode: "a_level_grades_legacy90",
+    };
+  }
+
+  const base70 = bestThreeH2Total + gpPoint;
+  const candidates = [base70];
+
+  if (optionalContentPoint !== null) {
+    candidates.push(((base70 + optionalContentPoint) / 80) * 70);
+  }
+
+  if (mtPoint !== null) {
+    candidates.push(((base70 + mtPoint) / 80) * 70);
+  }
+
+  if (optionalContentPoint !== null && mtPoint !== null) {
+    candidates.push(((base70 + optionalContentPoint + mtPoint) / 90) * 70);
+  }
+
+  const uas70 = round2(Math.max(...candidates));
+  const rp90Base = bestThreeH2Total + gpPoint + (optionalContentPoint ?? 0);
+  const rp90WithMotherTongue =
+    mtPoint === null ? rp90Base : rp90Base + mtPoint;
+  const rp90 = round2(Math.max(rp90Base, rp90WithMotherTongue));
+
+  return {
+    rp90,
+    legacy90: rp90,
+    uas70,
+    scoreMode: "a_level_grades_uas70",
+  };
+}
+
 function toNumber(value) {
   if (value === null || value === undefined || value === "") {
     return null;
@@ -140,9 +271,12 @@ function calculateBothFromGradeProfile(profile) {
  * - treat rank_points as RP /90
  * - derive UAS 70 from rank_points
  *
- * If graduation_year >= 2025:
- * - treat uas_70 as the primary stored value
- * - derive RP /90 from uas_70 for legacy band comparison
+ * If A-Level grades are stored:
+ * - calculate UAS 70 from the revised rules
+ * - calculate RP /90 from the same grade set for SIT/SUSS-style bands
+ *
+ * If grades are not stored yet, fall back to legacy stored scores so older
+ * profiles keep working until the user updates their profile.
  */
 function getUserAlevelScoresFromProfile(profile) {
   if (!profile) {
@@ -157,6 +291,11 @@ function getUserAlevelScoresFromProfile(profile) {
   const graduationYear = toNumber(profile.graduation_year);
   const storedRankPoints = toNumber(profile.rank_points);
   const storedUas70 = toNumber(profile.uas_70);
+  const gradeScores = calculateAlevelScoresFromGrades(profile);
+
+  if (gradeScores.uas70 !== null || gradeScores.rp90 !== null) {
+    return gradeScores;
+  }
 
   const isOldRpSystem = graduationYear !== null && graduationYear <= 2024;
 
@@ -250,6 +389,7 @@ module.exports = {
   calculateLegacyRp90FromGradeProfile,
   convertLegacy90ToUas70,
   calculateBothFromGradeProfile,
+  calculateAlevelScoresFromGrades,
   toNumber,
   getUserAlevelScores: getUserAlevelScoresFromProfile,
   getUserDirectComparableScore,
